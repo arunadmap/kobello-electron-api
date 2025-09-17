@@ -1,10 +1,12 @@
 export interface FileInputBase {
     fileName: string;
-    filePath?: string; // optional, relative to BASE_PATH
+    filePath?: string;
+     basePath?: string;
 }
 
 export interface CreateFileInput extends FileInputBase {
     content: string;
+   
 }
 
 export interface UpdateFileInput extends FileInputBase {

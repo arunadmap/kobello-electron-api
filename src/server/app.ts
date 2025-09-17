@@ -27,7 +27,7 @@ app.get('/health', (req: Request, res: Response) => {
 
 // Construct the path to the static files
 const userHomeDir = os.homedir();
-const staticPath = path.join(userHomeDir, 'kobello', 'apps', 'main');
+const staticPath = path.join(userHomeDir, 'kobello', 'apps');
 
 // Serve static files
 app.use(express.static(staticPath));
