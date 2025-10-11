@@ -20,7 +20,10 @@ if (appSidebar) {
   (async () => {
     try {
       // @ts-ignore
-      const serverAddress = await window.api.getServerAddress() + "main";
+      const mainServerAddress = await window.api.getServerAddress();
+      console.log('Main server address:', mainServerAddress);
+      
+      const serverAddress = mainServerAddress + "main";
       const iconUrl = `${serverAddress.replace(/\/$/, '')}/icon.svg`;
       const response = await fetch(iconUrl);
       if (!response.ok) throw new Error('Failed to load icon');
@@ -58,6 +61,18 @@ if (appSidebar) {
           iframe.style.height = '100%';
           iframe.style.border = 'none';
           appDiv.appendChild(iframe);
+        }
+
+        const appDiv2 = document.getElementById('panel2');
+        if (appDiv2) {
+          appDiv2.innerHTML = '';
+          const iframe = document.createElement('iframe');
+          iframe.src = mainServerAddress+"test";
+          console.log('Loading app from:', mainServerAddress+"test");
+          iframe.style.width = '100%';
+          iframe.style.height = '100%';
+          iframe.style.border = 'none';
+          appDiv2.appendChild(iframe);
         }
       };
 

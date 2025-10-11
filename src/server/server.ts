@@ -10,8 +10,7 @@ export function startServer(): Promise<number> {
           const actualPort = address.port;
           logger.info(`Server running on http://localhost:${actualPort}`);
           logger.info(`Serving files from: ${staticPath}`);
-          console.log(`Server running on http://localhost:${actualPort}`);
-          console.log(`Serving files from: ${staticPath}`);
+
           resolve(actualPort);
         } else {
           reject(new Error('Could not get server port'));
