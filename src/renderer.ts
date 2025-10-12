@@ -67,8 +67,8 @@ if (appSidebar) {
         if (appDiv2) {
           appDiv2.innerHTML = '';
           const iframe = document.createElement('iframe');
-          iframe.src = mainServerAddress+"test";
-          console.log('Loading app from:', mainServerAddress+"test");
+          iframe.src = mainServerAddress+"explorer";
+          console.log('Loading app from:', mainServerAddress+"explorer");
           iframe.style.width = '100%';
           iframe.style.height = '100%';
           iframe.style.border = 'none';
