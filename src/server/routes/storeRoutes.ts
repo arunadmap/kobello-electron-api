@@ -1,8 +1,7 @@
-// routes/fileRoutes.ts
-import express from 'express';
+import { Router } from 'express';
 import { addFile, getFiles } from '../controllers/store/fileController';
 
-const router = express.Router();
+const router = Router();
 
 router.post('/add', addFile);
 router.get('/list', getFiles);

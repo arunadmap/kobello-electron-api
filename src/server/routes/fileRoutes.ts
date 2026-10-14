@@ -10,7 +10,9 @@ const router = Router();
 router.post("/create", createFileController);
 router.put("/update", updateFileController);
 router.delete("/delete", deleteFileController);
-router.post("/get", getFileController);
-router.post("/list/get", getFilesList)
+router.get("/get", getFileController);
+router.post("/get", getFileController); // kept for existing clients
+router.get("/list", getFilesList);
+router.post("/list/get", getFilesList); // kept for existing clients
 
 export default router;

@@ -2,9 +2,11 @@ import fs from "fs";
 import path from "path";
 import { FileItem } from "../types/fileTypes";
 import logger from "../utils/logger";
+import { getErrorMessage } from "../utils/errors";
 
 /**
  * Reads only the first level of a directory (no recursion).
+ * Callers must pass a path already checked with resolveFolderPath.
  */
 export function readDirectory(dirPath: string): FileItem[] {
     logger.info(`Reading directory (non-recursive): ${dirPath}`);
@@ -12,31 +14,16 @@ export function readDirectory(dirPath: string): FileItem[] {
     try {
         const items = fs.readdirSync(dirPath, { withFileTypes: true });
 
-        const result = items.map(item => {
-            const fullPath = path.join(dirPath, item.name);
-
-            if (item.isDirectory()) {
-                logger.debug(`Found folder: ${fullPath}`);
-                return {
-                    type: "folder",
-                    name: item.name,
-                    path: fullPath
-                    // no children here
-                } as FileItem;
-            }
-
-            logger.debug(`Found file: ${fullPath}`);
-            return {
-                type: "file",
-                name: item.name,
-                path: fullPath
-            } as FileItem;
-        });
+        const result = items.map((item): FileItem => ({
+            type: item.isDirectory() ? "folder" : "file",
+            name: item.name,
+            path: path.join(dirPath, item.name),
+        }));
 
         logger.info(`Successfully listed top-level items in: ${dirPath}`);
         return result;
-    } catch (err: any) {
-        logger.error(`Error reading directory ${dirPath}: ${err.message}`);
+    } catch (err) {
+        logger.error(`Error reading directory ${dirPath}: ${getErrorMessage(err)}`);
         throw err;
     }
 }

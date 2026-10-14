@@ -1,24 +1,25 @@
-// services/fileStore.ts
 import fs from 'fs';
 import path from 'path';
-import os from 'os';
+import { STATE_PATH } from '../../constants/paths';
+import logger from '../../utils/logger';
+import { getErrorMessage } from '../../utils/errors';
 
 interface FileEntry {
   fileName: string;
   active: boolean;
 }
 
+/**
+ * Tracks open files and the active one, persisted to ~/kobello/state/fileStore.json.
+ */
 class FileStore {
   private storePath: string;
   private fileList: Set<string> = new Set();
   private activeFileName: string | null = null;
 
   constructor() {
-    const baseDir = path.join(os.homedir(), 'kobello', 'state');
-    if (!fs.existsSync(baseDir)) {
-      fs.mkdirSync(baseDir, { recursive: true });
-    }
-    this.storePath = path.join(baseDir, 'fileStore.json');
+    fs.mkdirSync(STATE_PATH, { recursive: true });
+    this.storePath = path.join(STATE_PATH, 'fileStore.json');
     this.load();
   }
 
@@ -38,7 +39,7 @@ class FileStore {
         this.fileList = new Set(parsed.files || []);
         this.activeFileName = parsed.activeFileName || null;
       } catch (err) {
-        console.error('Failed to load fileStore.json:', err);
+        logger.error(`Failed to load fileStore.json: ${getErrorMessage(err)}`);
       }
     }
   }

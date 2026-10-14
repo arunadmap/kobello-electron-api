@@ -1,12 +1,10 @@
 export interface FileInputBase {
     fileName: string;
-    filePath?: string;
-    basePath?: string;
+    filePath?: string; // optional, relative to BASE_PATH
 }
 
 export interface CreateFileInput extends FileInputBase {
     content: string;
-
 }
 
 export interface UpdateFileInput extends FileInputBase {
@@ -24,7 +22,6 @@ export interface FileDetails {
 }
 
 export interface FileItem {
-
     type: "file" | "folder";
     name: string;
     path: string;

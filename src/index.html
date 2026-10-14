@@ -2,20 +2,14 @@
 <html>
 
 <head>
+  <meta charset="UTF-8">
   <meta http-equiv="Content-Security-Policy"
-    content="frame-src 'self' http://localhost:*; default-src 'self' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; connect-src 'self' http://localhost:*;">
-  <title>Hello World!</title>
-
+    content="default-src 'self' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; connect-src 'self' http://localhost:* http://127.0.0.1:*;">
+  <title>Kobello</title>
 </head>
 
 <body>
-  <div class="main">
-    <div class="sidebar" id="sidebar"></div>
-    <div class="app">
-      <div class="panel left-panel" id="panel1"></div>
-
-    </div>
-  </div>
+  <div id="root" class="status"></div>
 </body>
 
 </html>

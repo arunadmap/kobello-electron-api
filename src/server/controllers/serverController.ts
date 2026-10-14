@@ -1,6 +1,6 @@
 import { Request, Response } from 'express';
 import logger from '../utils/logger';
-import { staticPath } from '../app';
+import { APPS_PATH } from '../constants/paths';
 
 let currentPort: number | null = null;
 
@@ -15,10 +15,10 @@ export function getServerInfo(req: Request, res: Response): Response {
   }
 
   const serverUrl = `http://localhost:${currentPort}`;
-  logger.info(`Returning server info: ${serverUrl}, staticPath: ${staticPath}`);
+  logger.info(`Returning server info: ${serverUrl}, staticPath: ${APPS_PATH}`);
 
   return res.json({
     serverUrl,
-    staticPath
+    staticPath: APPS_PATH
   });
 }

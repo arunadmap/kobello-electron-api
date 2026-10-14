@@ -1,96 +1,72 @@
-
+/**
+ * Status screen shown when the shell application cannot be loaded:
+ * either the local server failed to start, or ~/kobello/apps has no index.html.
+ */
 import './index.css';
+import type { ShellApi, StartupState } from './types/startup';
 
 declare global {
   interface Window {
-    api: {
-      getServerAddress(): Promise<string>;
-    };
+    api: ShellApi;
   }
 }
 
-// Global state
-let mainServerAddress: string | null = null;
-
-/**
- * Show error screen
- */
-const showFatalError = (message: string) => {
-  document.body.innerHTML = `
-    <div style="
-      height:100vh;
-      display:flex;
-      flex-direction:column;
-      justify-content:center;
-      align-items:center;
-      background:#1a1a1a;
-      color:#ff4d4d;
-      font-family:sans-serif;
-      text-align:center;
-      padding:20px;
-    ">
-      <h1>⚠️ Connection Error</h1>
-      <p style="color:#ccc;">${message}</p>
-      <button
-        onclick="window.location.reload()"
-        style="
-          margin-top:20px;
-          padding:10px 20px;
-          border:none;
-          border-radius:8px;
-          cursor:pointer;
-          background:#444;
-          color:white;
-        "
-      >
-        Retry Connection
-      </button>
-    </div>
-  `;
+const createElement = <K extends keyof HTMLElementTagNameMap>(
+  tag: K,
+  className: string,
+  text?: string
+): HTMLElementTagNameMap[K] => {
+  const element = document.createElement(tag);
+  element.className = className;
+  if (text) {
+    element.textContent = text;
+  }
+  return element;
 };
 
-/**
- * Load main server application
- */
-function loadMainServerApplication(serverAddress: string) {
-  const url = `${serverAddress.replace(/\/$/, '')}/index.html`;
+const createButton = (label: string, onClick: () => void, primary = false): HTMLButtonElement => {
+  const button = createElement('button', primary ? 'button button-primary' : 'button', label);
+  button.addEventListener('click', onClick);
+  return button;
+};
 
-  document.body.innerHTML = `
-    ${url}</iframe>
-  `;
+const render = (state: StartupState): void => {
+  const root = document.getElementById('root');
+  if (!root) {
+    return;
+  }
 
-  console.log(`🌐 Loading application from ${url}`);
-}
+  const card = createElement('div', 'status-card');
+  const actions = createElement('div', 'status-actions');
+  const retry = createButton('Retry', () => window.api.retry(), true);
 
-/**
- * Bootstrap
- */
-(async () => {
-  console.log('🚀 Initializing App...');
-
-  try {
-    const address = await window.api.getServerAddress();
-
-    if (!address) {
-      throw new Error('Server returned an empty address.');
-    }
-
-    mainServerAddress = address;
-
-    console.log(
-      '✅ Main server address initialized:',
-      mainServerAddress
+  if (state.status === 'server-error') {
+    card.append(
+      createElement('h1', 'status-title status-error', 'Local server failed to start'),
+      createElement('p', 'status-text', state.message)
     );
+    actions.append(retry);
+  } else {
+    card.append(
+      createElement('h1', 'status-title', 'No application installed'),
+      createElement('p', 'status-text', 'Put your application\'s index.html (and its assets) in this folder, then retry:'),
+      createElement('code', 'status-path', state.status === 'no-app' ? state.appsPath : '')
+    );
+    actions.append(retry, createButton('Open folder', () => window.api.openAppsFolder()));
+  }
 
-    loadMainServerApplication(mainServerAddress);
+  card.append(actions);
+  root.replaceChildren(card);
+};
+
+(async () => {
+  try {
+    render(await window.api.getStartupState());
   } catch (error) {
-    console.error('❌ Bootstrapping failed:', error);
-
-    const errorMessage =
-      error instanceof Error
-        ? error.message
-        : 'Could not connect to the backend server.';
-
-    showFatalError(errorMessage);
+    console.error('Failed to read startup state:', error);
+    render({
+      status: 'server-error',
+      message: error instanceof Error ? error.message : 'Could not reach the main process.',
+    });
   }
 })();
