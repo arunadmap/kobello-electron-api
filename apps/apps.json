@@ -1,0 +1,14 @@
+[
+  {
+    "id": "notes",
+    "name": "Notes",
+    "url": "notes/index.html",
+    "icon": "M6 3h9l5 5v13H6z M15 3v5h5 M9 13h7 M9 17h5"
+  },
+  {
+    "id": "files",
+    "name": "Files",
+    "url": "files/index.html",
+    "icon": "M3 6.5h6l2 2h10V19H3z"
+  }
+]

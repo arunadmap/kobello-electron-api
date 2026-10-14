@@ -14,6 +14,8 @@ import { rendererConfig } from './webpack.renderer.config';
 const config: ForgeConfig = {
   packagerConfig: {
     asar: true,
+    // Shell app served by the local server; copied to resources/apps
+    extraResource: ['./apps'],
   },
   rebuildConfig: {},
   makers: [

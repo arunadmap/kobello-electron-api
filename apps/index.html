@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Kobello</title>
+  <link rel="stylesheet" href="shared/ui.css">
+  <link rel="stylesheet" href="shell.css">
+</head>
+
+<body>
+  <div class="shell">
+    <nav class="sidebar" aria-label="Applications">
+      <div class="sidebar-header">
+        <button class="icon-button" id="toggle-sidebar" title="Collapse sidebar" aria-label="Collapse sidebar">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16" /></svg>
+        </button>
+        <span class="brand">Kobello</span>
+      </div>
+
+      <ul class="app-list" id="app-list"></ul>
+
+      <div class="sidebar-footer" id="server-status">
+        <span class="status-dot"></span>
+        <span class="status-label">Connecting…</span>
+      </div>
+    </nav>
+
+    <main class="app-area" id="app-area"></main>
+  </div>
+
+  <script src="shell.js"></script>
+</body>
+
+</html>

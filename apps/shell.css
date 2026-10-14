@@ -1,0 +1,145 @@
+.shell {
+  display: flex;
+  height: 100vh;
+}
+
+/* Sidebar */
+
+.sidebar {
+  flex: 0 0 216px;
+  display: flex;
+  flex-direction: column;
+  background: var(--surface-2);
+  border-right: 1px solid var(--border);
+  transition: flex-basis 0.15s ease;
+  overflow: hidden;
+}
+
+.sidebar-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px;
+  height: 52px;
+  box-sizing: border-box;
+}
+
+.brand {
+  font-weight: 600;
+  font-size: 15px;
+  white-space: nowrap;
+}
+
+.app-list {
+  list-style: none;
+  margin: 4px 0 0;
+  padding: 0 8px;
+  flex: 1;
+}
+
+.app-link {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 8px 10px;
+  margin-bottom: 2px;
+  border: none;
+  border-radius: var(--radius);
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.app-link:hover {
+  background: var(--hover);
+}
+
+.app-link[aria-current="page"] {
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.app-link svg,
+.icon-button svg {
+  flex: 0 0 20px;
+  width: 20px;
+  height: 20px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.sidebar-footer {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 18px;
+  font-size: 12px;
+  color: var(--muted);
+  white-space: nowrap;
+  border-top: 1px solid var(--border);
+}
+
+.status-dot {
+  flex: 0 0 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--muted);
+}
+
+.sidebar-footer.online .status-dot {
+  background: var(--success);
+}
+
+.sidebar-footer.offline .status-dot {
+  background: var(--danger);
+}
+
+/* Collapsed: icons only */
+
+.shell.collapsed .sidebar {
+  flex-basis: 60px;
+}
+
+.shell.collapsed .brand,
+.shell.collapsed .app-name,
+.shell.collapsed .status-label {
+  display: none;
+}
+
+.shell.collapsed .app-link {
+  justify-content: center;
+  padding: 8px 0;
+}
+
+.shell.collapsed .sidebar-footer {
+  justify-content: center;
+  padding: 12px 0;
+}
+
+/* App area */
+
+.app-area {
+  flex: 1;
+  position: relative;
+  background: var(--surface);
+}
+
+.app-frame {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  border: none;
+}
+
+.app-frame[hidden] {
+  display: none;
+}

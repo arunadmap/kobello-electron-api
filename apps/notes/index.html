@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <title>Notes</title>
+  <link rel="stylesheet" href="../shared/ui.css">
+  <link rel="stylesheet" href="notes.css">
+</head>
+
+<body>
+  <div class="split">
+    <aside class="list-pane">
+      <div class="pane-header">
+        <h1 class="pane-title">Notes</h1>
+      </div>
+      <form class="new-note" id="new-note">
+        <input class="input" id="new-note-name" placeholder="New note name…" autocomplete="off" aria-label="New note name">
+      </form>
+      <p class="muted form-error" id="form-error" hidden></p>
+      <ul class="item-list" id="note-list"></ul>
+    </aside>
+
+    <section class="detail-pane">
+      <div class="empty" id="empty-state">Select a note, or type a name on the left and press Enter to create one.</div>
+
+      <div class="editor-pane" id="editor-pane" hidden>
+        <div class="pane-header">
+          <h2 class="pane-title" id="note-title"></h2>
+          <span class="muted" id="save-status"></span>
+          <button class="button button-danger" id="delete-note">Delete</button>
+        </div>
+        <textarea class="editor" id="editor" spellcheck="true" aria-label="Note text"></textarea>
+      </div>
+    </section>
+  </div>
+
+  <script src="../shared/api.js"></script>
+  <script src="notes.js"></script>
+</body>
+
+</html>

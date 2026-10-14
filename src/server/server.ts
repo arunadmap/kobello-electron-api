@@ -1,7 +1,7 @@
 import http from 'http';
 import fs from 'fs';
 import { app } from './app';
-import { APPS_PATH } from './constants/paths';
+import { APPS_PATH, BASE_PATH } from './constants/paths';
 import { setServerPort } from './controllers/serverController';
 import logger from './utils/logger';
 
@@ -35,7 +35,8 @@ function listenOnPort(port: number): Promise<number> {
 }
 
 export async function startServer(): Promise<number> {
-  fs.mkdirSync(APPS_PATH, { recursive: true });
+  // The apps folder ships with the app (read-only when packaged); only user data is created here
+  fs.mkdirSync(BASE_PATH, { recursive: true });
 
   // Try port 5050 first, then fallback to random port
   const port = await listenOnPort(DEFAULT_PORT).catch((error: Error) => {

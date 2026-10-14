@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <title>Files</title>
+  <link rel="stylesheet" href="../shared/ui.css">
+  <link rel="stylesheet" href="files.css">
+</head>
+
+<body>
+  <div class="split">
+    <aside class="list-pane">
+      <div class="pane-header">
+        <nav class="crumbs" id="crumbs" aria-label="Current folder"></nav>
+        <button class="icon-button" id="refresh" title="Refresh" aria-label="Refresh">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 11a8 8 0 1 0-2.3 5.7M20 5v6h-6" /></svg>
+        </button>
+      </div>
+      <ul class="item-list" id="file-list"></ul>
+    </aside>
+
+    <section class="detail-pane">
+      <div class="empty" id="empty-state">Select a file to preview it.</div>
+
+      <div class="preview-pane" id="preview-pane" hidden>
+        <div class="pane-header">
+          <h2 class="pane-title" id="preview-title"></h2>
+          <span class="muted" id="preview-meta"></span>
+        </div>
+        <pre class="preview" id="preview"></pre>
+      </div>
+    </section>
+  </div>
+
+  <script src="../shared/api.js"></script>
+  <script src="files.js"></script>
+</body>
+
+</html>
