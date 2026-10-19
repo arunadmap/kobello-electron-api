@@ -18,8 +18,8 @@ const userHomeDir = app.getPath('home');
 const staticPath = path.join(userHomeDir, 'kobello', 'apps');
 
 // App folder configuration
-const APP_NAME = 'aistudio';
-const TARGET_URL = 'https://mcq-app.vercel.app/exampaper';
+const APP_NAME = 'kobello-ui';
+const TARGET_URL = 'https://kobello-ui.vercel.app/';
 const APP_STORAGE_DIR = path.join(staticPath, APP_NAME);
 
 /**
