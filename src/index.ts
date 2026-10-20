@@ -30,6 +30,14 @@ let mainWindow: BrowserWindow | null = null;
 /** Links that may be handed to the user's default browser. */
 const isExternalLink = (url: string) => /^(https?:|mailto:)/i.test(url);
 
+/** Shown when Kobello UI has never been downloaded and there's no internet. */
+const firstLaunchOfflinePage = () => `data:text/html;charset=utf-8,${encodeURIComponent(`<!doctype html>
+<meta charset="utf-8"><title>Kobello</title>
+<body style="font:15px system-ui;display:grid;place-content:center;height:100vh;margin:0;text-align:center;color:#555">
+<h2 style="color:#222;margin:0 0 8px">Connect to the internet to set up Kobello</h2>
+<p style="margin:0 0 20px">Kobello needs the internet the first time it opens. After that it works offline.</p>
+<a href="${SHELL_URL}" style="color:#2563eb;font-weight:600">Try again</a></body>`)}`;
+
 const createWindow = (): void => {
   mainWindow = new BrowserWindow({
     height: 700,
@@ -55,6 +63,16 @@ const createWindow = (): void => {
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
     if (isExternalLink(url)) shell.openExternal(url);
     return { action: 'deny' };
+  });
+
+  // The first launch needs the internet to download Kobello UI (later launches use its cache).
+  // Without it, show a short message instead of Chromium's error page. Code -3 means the load was replaced.
+  mainWindow.webContents.on('did-fail-load', (_event, errorCode, _description, _url, isMainFrame) => {
+    if (isMainFrame && errorCode !== -3) {
+      mainWindow?.loadURL(firstLaunchOfflinePage()).catch(() => {
+        // Nothing else to show.
+      });
+    }
   });
 
   mainWindow.on('closed', () => {

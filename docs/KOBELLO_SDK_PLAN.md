@@ -297,13 +297,28 @@ Known v1 limits:
 - Clicking a notification focuses Kobello and tells the app, but Kobello UI doesn't switch to that app yet (would need a `shell.*` event).
 - Until Phase 3, the live Kobello UI still shows apps in iframes and keeps its list in localStorage; the old `window.kobello` bridge no longer exists.
 
-### Phase 3 — Kobello UI (`Kobello`)
+### Phase 3 — Kobello UI (`Kobello`) ✓ (2026-10-20)
 - Add `@kobello/sdk` (local `npm link` / `file:` dependency until it's published).
 - Replace `src/bridge.ts` with `@kobello/sdk/shell`.
 - Load the app list from `shell.apps.list()` and keep UI state (order, active app) in `kobello.storage`. On first run, **import the old localStorage apps once** (install each through `shell.apps.install`) and then delete the old data.
 - Add app dialog: call `shell.apps.inspect`. Show a permission prompt for Kobello apps, or "Website" for plain sites. After installing, show "Ready offline", or a warning if the app's service worker didn't activate.
 - Outside Electron (`!kobello.isAvailable()`): show a short "Open Kobello Desktop" screen instead of a broken UI (decision 1).
 **Done when:** the app list survives a restart through the host, nothing app-related remains in localStorage, and installing a Kobello app shows its permissions.
+
+Result:
+- `src/bridge.ts` and the iframe fallback are gone. Apps always show in the host's native views (`shell.views.*`); links open with `kobello.links.open`; Ctrl/Cmd+1–9 come from `shell.onShortcut`.
+- The app list comes from `shell.apps.list()`; the open app is remembered in `kobello.storage` (`activeAppId`). Old localStorage lists are installed once in the background after the list shows, then removed (apps that can't be reached are kept and retried next launch).
+- Add dialog: Next checks the link (`shell.apps.inspect`) and shows a Kobello app's permissions in plain words; Install saves it for offline use and warns if the app didn't cache itself. Remove opens a dialog with "Also delete its saved data and files", unchecked by default.
+- In a normal browser the page shows "Open Kobello on your computer".
+- Electron: a first launch without internet shows "Connect to the internet to set up Kobello" with a Try again link, instead of Chromium's error page.
+- Checks: 17 unit tests and the build pass. End to end in the packaged app with the real UI build: migration, add (check → permissions → install), switching, rename, remove with data deletion, and a restart with **every** server stopped (Kobello UI, the app list, the last open app and its data all came back from cache).
+
+Before deploying Kobello UI to Vercel:
+- **`@kobello/sdk` is a local `file:../kobello-package` dependency**, which Vercel can't build. Publish the SDK to npm (needs the `@kobello` scope), or push `kobello-package` and depend on it from GitHub, then update `Kobello/package.json`.
+- Deploy Kobello UI only together with (or after) the new desktop app: the old desktop app has no `window.__kobello`, so the new UI would show "Open Kobello on your computer" there.
+
+Known limits:
+- Once during testing, a freshly installed app's view reported 0×0 right after the dialog closed; it didn't happen again in later runs, and switching apps always sized it correctly.
 
 ### Phase 4 — Example app + developer guide (open source)
 - `examples/notes`: a small Vite + React PWA (`vite-plugin-pwa`) using storage, files, notifications and links, with a `kobello.json`. It must work offline.
