@@ -1,10 +1,14 @@
 import { Request, Response } from "express";
 import { readDirectory } from "../services/getFileListService";
-import logger from "../utils/logger";
+import { resolveInBase } from "../constants/paths";
+import logger, { errorMessage } from "../utils/logger";
 
+/**
+ * Lists one folder level. `?path=` is relative to the kobello folder (empty = the kobello folder itself).
+ */
 export const getFilesList = (req: Request, res: Response): void => {
     try {
-        const folderPath = (req.query.path as string) || process.cwd();
+        const folderPath = resolveInBase(typeof req.query.path === "string" ? req.query.path : "");
         logger.info(`API request received for folder: ${folderPath}`);
 
         const tree = readDirectory(folderPath);
@@ -16,12 +20,13 @@ export const getFilesList = (req: Request, res: Response): void => {
         });
 
         logger.info(`API response sent for folder: ${folderPath}`);
-    } catch (error: any) {
-        logger.error(`API error: ${error.message}`);
-        res.status(500).json({
+    } catch (error) {
+        const message = errorMessage(error);
+        logger.error(`API error: ${message}`);
+        res.status(message === "INVALID_PATH" ? 400 : 500).json({
             success: false,
-            message: "Failed to read directory",
-            error: error.message
+            message: message === "INVALID_PATH" ? "Path must stay inside the kobello folder" : "Failed to read directory",
+            error: message
         });
     }
 };

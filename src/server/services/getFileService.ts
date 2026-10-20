@@ -1,20 +1,20 @@
 import fs from "fs";
 import path from "path";
 import logger from "../utils/logger";
-import { BASE_PATH } from "../constants/paths";
+import { resolveInBase } from "../constants/paths";
 import { FileInputBase, FileDetails } from "../types/fileTypes";
 
 /**
  * Gets file details along with file content.
  * @throws Error "FILE_NOT_FOUND" if file does not exist.
+ * @throws Error "INVALID_PATH" if the path leaves the kobello folder.
  */
 export function getFileService({ fileName, filePath = "" }: FileInputBase): FileDetails & { content: string } {
-  const targetDir = path.join(BASE_PATH, filePath);
-  const fullPath = path.join(targetDir, fileName);
+  const fullPath = resolveInBase(filePath, fileName);
 
   logger.info(`Attempting to get file: ${fullPath}`);
 
-  if (!fs.existsSync(fullPath)) {
+  if (!fs.existsSync(fullPath) || !fs.statSync(fullPath).isFile()) {
     logger.warn(`File not found: ${fullPath}`);
     throw new Error("FILE_NOT_FOUND");
   }

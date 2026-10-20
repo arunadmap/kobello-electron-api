@@ -1,7 +1,7 @@
 import fs from "fs";
 import path from "path";
 import { FileItem } from "../types/fileTypes";
-import logger from "../utils/logger";
+import logger, { errorMessage } from "../utils/logger";
 
 /**
  * Reads only the first level of a directory (no recursion).
@@ -35,8 +35,8 @@ export function readDirectory(dirPath: string): FileItem[] {
 
         logger.info(`Successfully listed top-level items in: ${dirPath}`);
         return result;
-    } catch (err: any) {
-        logger.error(`Error reading directory ${dirPath}: ${err.message}`);
+    } catch (err) {
+        logger.error(`Error reading directory ${dirPath}: ${errorMessage(err)}`);
         throw err;
     }
 }

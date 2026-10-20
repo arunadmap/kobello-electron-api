@@ -1,6 +1,6 @@
-// controllers/fileController.ts
+// Keeps the list of files known to the UI and which one is active.
 import { Request, Response } from 'express';
-import redisStore from '../../services/store/storeService';
+import fileStore from '../../services/store/storeService';
 import logger from '../../utils/logger';
 
 export const addFile = async (req: Request, res: Response) => {
@@ -13,7 +13,7 @@ export const addFile = async (req: Request, res: Response) => {
         .json({ message: 'fileName (string) and active (boolean) are required' });
     }
 
-    const result = await redisStore.addFile(fileName, active);
+    const result = await fileStore.addFile(fileName, active);
     logger.info(`File added: ${fileName}, active: ${active}`);
     res.status(201).json(result);
   } catch (err) {
@@ -24,7 +24,7 @@ export const addFile = async (req: Request, res: Response) => {
 
 export const getFiles = async (req: Request, res: Response) => {
   try {
-    const data = await redisStore.getFiles();
+    const data = await fileStore.getFiles();
     res.json(data);
   } catch (err) {
     logger.error(`Error in getFiles: ${(err as Error).message}`);

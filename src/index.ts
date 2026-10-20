@@ -1,100 +1,82 @@
-
-import { app, BrowserWindow, ipcMain } from 'electron';
-import * as path from 'path';
-import * as fs from 'fs';
+import { app, BrowserWindow, ipcMain, shell } from 'electron';
 import { startServer } from './server/server';
 
-declare const MAIN_WINDOW_WEBPACK_ENTRY: string;
 declare const MAIN_WINDOW_PRELOAD_WEBPACK_ENTRY: string;
 
+// Kobello UI is hosted online. Its service worker caches it, so it keeps working offline
+// after the first successful launch.
+const TARGET_URL = 'https://kobello-ui.vercel.app/';
+const TARGET_ORIGIN = new URL(TARGET_URL).origin;
+
+// Squirrel (the Windows installer) starts the app during install/uninstall; quit right away.
 if (require('electron-squirrel-startup')) {
   app.quit();
 }
 
-let serverPort: number | null = null;
-
-// Base storage path
-const userHomeDir = app.getPath('home');
-const staticPath = path.join(userHomeDir, 'kobello', 'apps');
-
-// App folder configuration
-const APP_NAME = 'kobello-ui';
-const TARGET_URL = 'https://kobello-ui.vercel.app/';
-const APP_STORAGE_DIR = path.join(staticPath, APP_NAME);
-
-/**
- * Downloads a web app's HTML and assets to the specified folder
- */
-async function downloadPWA(url: string, outputDir: string): Promise<void> {
-  if (!fs.existsSync(outputDir)) {
-    fs.mkdirSync(outputDir, { recursive: true });
-  }
-
-  const hiddenWin = new BrowserWindow({
-    show: false,
-    webPreferences: { offscreen: true },
-  });
-
-  console.log(`Downloading PWA from ${url}...`);
-  await hiddenWin.loadURL(url);
-
-  // Give the client-side SPA bundle time to hydrate/render
-  await new Promise((resolve) => setTimeout(resolve, 3500));
-
-  const indexPath = path.join(outputDir, 'index.html');
-  await hiddenWin.webContents.savePage(indexPath, 'HTMLComplete');
-  hiddenWin.destroy();
-  console.log(`PWA downloaded successfully to: ${outputDir}`);
+// Only one Kobello window may run. A second launch focuses the existing one instead.
+if (!app.requestSingleInstanceLock()) {
+  app.quit();
 }
 
+let mainWindow: BrowserWindow | null = null;
+let serverPort: number | null = null;
+
+/** Links that may be handed to the user's default browser. */
+const isExternalLink = (url: string) => /^(https?:|mailto:)/i.test(url);
+
 const createWindow = (): void => {
-  const mainWindow = new BrowserWindow({
+  mainWindow = new BrowserWindow({
     height: 700,
     width: 1000,
     autoHideMenuBar: true,
     webPreferences: {
       preload: MAIN_WINDOW_PRELOAD_WEBPACK_ENTRY,
-      webSecurity: false, // Allows cross-origin CDN and asset loading
+      contextIsolation: true,
+      sandbox: true,
+      nodeIntegration: false,
     },
   });
 
-  // Loosen CSP headers to allow downloaded assets and external APIs to connect
-  mainWindow.webContents.session.webRequest.onHeadersReceived((details, callback) => {
-    callback({
-      responseHeaders: {
-        ...details.responseHeaders,
-        'Content-Security-Policy': [
-          "default-src * 'unsafe-inline' 'unsafe-eval' data: blob:; " +
-          "connect-src * http://localhost:* ws://localhost:*; " +
-          "frame-src * http://localhost:*;"
-        ],
-        'Access-Control-Allow-Origin': ['*'],
-      },
-    });
+  // Keep the window on Kobello UI. Links that try to leave it open in the default browser.
+  mainWindow.webContents.on('will-navigate', (event) => {
+    if (new URL(event.url).origin !== TARGET_ORIGIN) {
+      event.preventDefault();
+      if (isExternalLink(event.url)) shell.openExternal(event.url);
+    }
   });
 
-  // If your server serves staticPath directly, access the app via its folder name:
-  mainWindow.loadURL(`http://localhost:${serverPort}/${APP_NAME}/index.html`);
-  mainWindow.webContents.openDevTools();
+  // New windows (target="_blank", window.open) open in the default browser, never inside Electron.
+  mainWindow.webContents.setWindowOpenHandler(({ url }) => {
+    if (isExternalLink(url)) shell.openExternal(url);
+    return { action: 'deny' };
+  });
+
+  mainWindow.on('closed', () => {
+    mainWindow = null;
+  });
+
+  mainWindow.loadURL(TARGET_URL);
+
+  // DevTools only while developing, never in the installed app.
+  if (!app.isPackaged) {
+    mainWindow.webContents.openDevTools();
+  }
 };
 
+app.on('second-instance', () => {
+  if (!mainWindow) return;
+  if (mainWindow.isMinimized()) mainWindow.restore();
+  mainWindow.focus();
+});
+
 app.whenReady().then(async () => {
-  // Ensure the base directory exists
-  if (!fs.existsSync(staticPath)) {
-    fs.mkdirSync(staticPath, { recursive: true });
+  // The local file server is optional for the UI, so a failure must not stop the window from opening.
+  try {
+    serverPort = await startServer();
+  } catch (error) {
+    console.error('Local server failed to start:', error);
   }
 
-  // Download the PWA if it hasn't been cached yet
-  const indexFile = path.join(APP_STORAGE_DIR, 'index.html');
-  if (!fs.existsSync(indexFile)) {
-    await downloadPWA(TARGET_URL, APP_STORAGE_DIR);
-  }
-
-  // Fixed: startServer takes 0 arguments
-  serverPort = await startServer();
-  console.log(`Server running at http://localhost:${serverPort}/`);
-
-  // Open window after server is ready
   createWindow();
 });
 
@@ -111,5 +93,5 @@ app.on('activate', () => {
 });
 
 ipcMain.handle('get-server-address', async () => {
-  return `http://localhost:${serverPort ?? 0}/`;
+  return serverPort ? `http://localhost:${serverPort}/` : null;
 });

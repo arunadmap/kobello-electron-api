@@ -1,4 +1,4 @@
-// services/fileStore.ts
+// Stores the file list and the active file in ~/kobello/state/fileStore.json.
 import fs from 'fs';
 import path from 'path';
 import os from 'os';

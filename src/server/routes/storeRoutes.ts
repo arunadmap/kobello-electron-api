@@ -1,4 +1,4 @@
-// routes/fileRoutes.ts
+// Routes for the active-file list (see controllers/store/fileController.ts).
 import express from 'express';
 import { addFile, getFiles } from '../controllers/store/fileController';
 

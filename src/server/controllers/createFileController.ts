@@ -1,6 +1,6 @@
 import { Request, Response } from "express";
 import { createFileService } from "../services/createFileService";
-import logger from "../utils/logger";
+import logger, { errorMessage } from "../utils/logger";
 
 export async function createFileController(req: Request, res: Response) {
   try {
@@ -21,18 +21,22 @@ export async function createFileController(req: Request, res: Response) {
       message: "File created successfully",
       file,
     });
-  } catch (err: any) {
-    if (err.message === "FILE_EXISTS") {
+  } catch (err) {
+    const message = errorMessage(err);
+    if (message === "FILE_EXISTS") {
       logger.warn(`File already exists (API): ${req.body.fileName}`);
       return res.status(409).json({
         error: "File already exists",
       });
     }
+    if (message === "INVALID_PATH") {
+      return res.status(400).json({ error: "Path must stay inside the kobello folder" });
+    }
 
-    logger.error(`Internal server error: ${err.message}`);
+    logger.error(`Internal server error: ${message}`);
     return res.status(500).json({
       error: "Internal server error",
-      details: err.message,
+      details: message,
     });
   }
 }

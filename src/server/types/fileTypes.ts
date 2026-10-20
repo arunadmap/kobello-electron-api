@@ -1,7 +1,6 @@
 export interface FileInputBase {
     fileName: string;
     filePath?: string;
-    basePath?: string;
 }
 
 export interface CreateFileInput extends FileInputBase {

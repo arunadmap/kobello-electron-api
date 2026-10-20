@@ -1,11 +1,10 @@
 import { Request, Response } from "express";
 import { getFileService } from "../services/getFileService";
-import logger from "../utils/logger";
+import logger, { errorMessage } from "../utils/logger";
 
 export async function getFileController(req: Request, res: Response) {
     try {
         const { fileName, filePath } = req.body;
-        console.log("Aruna      ---------------" + fileName, filePath);
 
         if (!fileName || !filePath) {
             logger.error("Validation failed: Missing required fields");
@@ -25,18 +24,23 @@ export async function getFileController(req: Request, res: Response) {
             message: "File retrieved successfully",
             file,
         });
-    } catch (err: any) {
-        if (err.message === "FILE_NOT_FOUND") {
+    } catch (err) {
+        const message = errorMessage(err);
+        if (message === "FILE_NOT_FOUND") {
             logger.warn(`File not found (API): ${req.body.fileName}`);
             return res.status(404).json({
                 error: "File not found",
             });
         }
 
-        logger.error(`Internal server error: ${err.message}`);
+        if (message === "INVALID_PATH") {
+            return res.status(400).json({ error: "Path must stay inside the kobello folder" });
+        }
+
+        logger.error(`Internal server error: ${message}`);
         return res.status(500).json({
             error: "Internal server error",
-            details: err.message,
+            details: message,
         });
     }
 }
