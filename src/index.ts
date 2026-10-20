@@ -3,13 +3,17 @@ import { startHost } from './host/router';
 
 declare const MAIN_WINDOW_PRELOAD_WEBPACK_ENTRY: string;
 
-// Developer mode: running from source, or KOBELLO_DEV=1. It allows http://localhost apps and
-// lets KOBELLO_UI_URL point the window at a local Kobello UI (e.g. http://localhost:5173/).
+// Developer mode: running from source, or KOBELLO_DEV=1. It allows http://localhost apps,
+// and KOBELLO_UI_URL can point the window at another Kobello UI.
 const DEV_MODE = !app.isPackaged || process.env.KOBELLO_DEV === '1';
 
-// Kobello UI is hosted online. Its service worker caches it, so it keeps working offline
-// after the first successful launch.
-const SHELL_URL = (DEV_MODE && process.env.KOBELLO_UI_URL) || 'https://kobello-ui.vercel.app/';
+// Which Kobello UI the window shows:
+// - running from source (npm start): the local dev server of the Kobello UI project (npm run dev there),
+// - the installed app: the published Kobello UI. Its service worker caches it, so it keeps
+//   working offline after the first successful launch.
+const LOCAL_UI_URL = 'http://127.0.0.1:5173/';
+const PUBLISHED_UI_URL = 'https://kobello-ui.vercel.app/';
+const SHELL_URL = (DEV_MODE && process.env.KOBELLO_UI_URL) || (app.isPackaged ? PUBLISHED_UI_URL : LOCAL_UI_URL);
 const SHELL_ORIGIN = new URL(SHELL_URL).origin;
 
 // Squirrel (the Windows installer) starts the app during install/uninstall; quit right away.

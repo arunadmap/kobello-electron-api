@@ -320,7 +320,7 @@ Before deploying Kobello UI to Vercel:
 Known limits:
 - Once during testing, a freshly installed app's view reported 0×0 right after the dialog closed; it didn't happen again in later runs, and switching apps always sized it correctly.
 
-### Phase 4 — Example app + developer guide (open source)
+### Phase 4 — Example app + developer guide (open source) ✓ (2026-10-20)
 - `examples/notes`: a small Vite + React PWA (`vite-plugin-pwa`) using storage, files, notifications and links, with a `kobello.json`. It must work offline.
 - **Guide** (Markdown, in a public repo or docs site):
   1. What a Kobello app is
@@ -334,6 +334,15 @@ Known limits:
   9. Publishing (host it on any https URL)
 - Later, maybe a `npm create kobello-app` template.
 **Done when:** someone new can follow the guide from zero to a running app in Kobello.
+
+Result:
+- Guide: `kobello-package/docs/GUIDE.md` (one page, sections 1–9 above), linked from the SDK README.
+- Example: `kobello-package/examples/notes`, a Vite + React PWA (`vite-plugin-pwa`) using files (notes as Markdown files), storage (last note, a setting), notifications ("Note saved") and links. Dev server on 127.0.0.1:5180 (uses the mock in a normal browser), preview on 127.0.0.1:5181. The mock is left out of its production build.
+- Followed the guide end to end: Kobello from source with the local Kobello UI, added Notes through the dialog (all four permissions listed, installed and saved for offline), created and saved a note (file on disk), turned on save notifications (a real Windows notification), then restarted with the Notes server stopped: Notes opened from its cache with the note, the last-open note and the setting restored.
+- The SDK is still installed locally (`file:` links) in Kobello UI and the example; the guide explains how until it's on npm.
+
+Local development (until Kobello UI is published):
+- `npm start` in `kobello-electron-api` shows the local Kobello UI dev server (`http://127.0.0.1:5173/`, `npm run dev` in `Kobello`). The packaged app still shows the published Kobello UI. `KOBELLO_UI_URL` overrides either in developer mode. See the desktop app's README.
 
 ### Phase 5 — Later (not in v1)
 Browser fallback for Kobello UI · app approval/review and signing · file open/save dialogs · per-permission toggles in settings · background tasks · app-to-app messaging · iframe transport · auto-update for the Electron app.
