@@ -271,10 +271,10 @@ Plain websites follow the same rules. They work offline only if the site has its
 **Done when:** `npm run build` and the tests pass, and `npm pack` produces a package that installs into a Vite app.
 Result: 16 tests pass; a packed build type-checks, builds and runs in a fresh Vite + TypeScript app. The package ships ESM with a `default` export condition, so the Electron host's webpack (CommonJS) build can import `@kobello/sdk/protocol` too.
 
-### Phase 2 — Electron host (`kobello-electron-api`)
+### Phase 2 — Electron host (`kobello-electron-api`) ✓ (2026-10-20)
 Already done before Phase 1 (cleanup on 2026-10-20): app renamed to `kobello` / `Kobello`, the main window loads `TARGET_URL` directly (no `downloadPWA` snapshot), `webSecurity: false`, the global CSP override and forced DevTools removed, single-instance lock, external links open in the default browser, and the Express server bound to `127.0.0.1` with paths confined to `~/kobello`.
 
-Still to do:
+Built in Phase 2:
 - **App views:** create one `WebContentsView` per app (answers `shell.views.show/hideAll/reload/close`; Kobello UI calls these instead of its old `showApp`/`hideApps` bridge in Phase 3). Kobello apps get `app-preload`; plain websites get no preload.
 - **Preloads:** `shell-preload.ts` and `app-preload.ts`, both exposing only `window.__kobello` via `contextBridge`. Add them as Webpack entries in `forge.config.ts`.
 - **Router:** `ipcMain.handle('kobello:invoke')` → identity → origin check → permission → validation → handler. One module per area: `host/storage.ts`, `host/files.ts`, `host/notifications.ts`, `host/links.ts`, `host/app.ts`, `host/shell.ts`, `host/registry.ts`.
@@ -284,6 +284,18 @@ Still to do:
 - **Remove the Express server** (`src/server/*`) and its dependencies once nothing calls it.
 - Tests: unit-test handlers against a temp folder (path escapes, symlinks, quotas, atomic writes); integration-test one IPC round trip with a test app.
 **Done when:** a test app can use every v1 method, a plain website can't, no port is listening, and an installed PWA opens with the network cut off (test with a local server that's then shut down).
+
+Result:
+- Code: `src/host/` (`router.ts`, `views.ts`, `storage.ts`, `files.ts`, `registry.ts`, `site-info.ts`, `notifications.ts`, `common.ts`) and one shared `src/preload.ts` for Kobello UI and Kobello apps (the main process decides who may do what). The Express server is removed; nothing listens on a port.
+- 13 unit tests (file confinement incl. a link pointing outside, storage limits, registry, manifest and URL checks, website info, network errors).
+- End-to-end on the packaged app with local test servers: install with `offlineReady: true` for a PWA and `false` for a site without a service worker; every SDK call from the app; path escapes, shell methods, undeclared permissions and unknown methods refused; iframes inside an app and plain websites get no bridge; after a restart with the app's server shut down the PWA opened from its cache with its data and files; the plain website showed the offline page; uninstall with `deleteData` removed the data folder and the service worker caches.
+- Developer mode: running from source or `KOBELLO_DEV=1`. Allows `http://localhost` apps, and `KOBELLO_UI_URL` points the window at a local Kobello UI.
+- SDK additions: `offlineReady` on install and a `NETWORK_ERROR` code.
+
+Known v1 limits:
+- `storage.onChange` never fires yet: each app has a single view, so there's no other window to hear from.
+- Clicking a notification focuses Kobello and tells the app, but Kobello UI doesn't switch to that app yet (would need a `shell.*` event).
+- Until Phase 3, the live Kobello UI still shows apps in iframes and keeps its list in localStorage; the old `window.kobello` bridge no longer exists.
 
 ### Phase 3 — Kobello UI (`Kobello`)
 - Add `@kobello/sdk` (local `npm link` / `file:` dependency until it's published).
