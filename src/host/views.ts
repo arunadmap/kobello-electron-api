@@ -15,6 +15,9 @@ const WARM_UP_TIMEOUT_MS = 30_000;
 /** The host's own limit for the whole warm-up, in case the page never loads or never answers. */
 const WARM_UP_HOST_TIMEOUT_MS = 35_000;
 
+/** Corner radius of app views, in px. Matches Kobello UI's sheet radius. */
+const VIEW_BORDER_RADIUS = 12;
+
 export const partitionFor = (appId: string) => `persist:app-${appId}`;
 
 export interface ViewOptions {
@@ -40,7 +43,7 @@ function offlinePage(app: RegistryApp): string {
 <body style="font:15px system-ui;display:grid;place-content:center;height:100vh;margin:0;text-align:center;color:#555">
 <h2 style="color:#222;margin:0 0 8px">${escape(app.name)} can't open right now</h2>
 <p style="margin:0 0 20px">You're offline, and this app hasn't been saved for offline use yet.</p>
-<a href="${escape(app.url)}" style="color:#3c7255;font-weight:600">Try again</a></body>`;
+<a href="${escape(app.url)}" style="color:#3355ff;font-weight:600">Try again</a></body>`;
   return `data:text/html;charset=utf-8,${encodeURIComponent(html)}`;
 }
 
@@ -157,6 +160,8 @@ export class AppViews {
         devTools: this.options.devTools,
       },
     });
+    view.setBorderRadius(VIEW_BORDER_RADIUS);
+    view.setBackgroundColor('#FFFFFF'); // White while the page loads.
     view.setVisible(false);
     const contents = view.webContents;
 
