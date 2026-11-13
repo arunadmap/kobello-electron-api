@@ -3,25 +3,25 @@
 // For each call:
 //   1. Work out who is calling from the sender itself, never from the call's arguments.
 //   2. Check the call comes from the main frame and from the app's registered origin.
-//   3. Check the app declared the permission the method needs.
+//   3. Check the app has the permission the method needs (declared in kobello.json, approved at install).
 //   4. Run the method and send back { ok, value } or { ok: false, error }.
 
 import path from 'path';
-import { randomUUID } from 'crypto';
 import fs from 'fs';
-import { app as electronApp, BrowserWindow, ipcMain, IpcMainInvokeEvent, net, shell } from 'electron';
+import { app as electronApp, BrowserWindow, ipcMain, IpcMainInvokeEvent, shell } from 'electron';
 import { KobelloError } from '@kobello/sdk';
 import type { AppInfo, Bounds, EventName, Events, Permission, Response } from '@kobello/sdk/protocol';
 import { PROTOCOL_VERSION } from '@kobello/sdk/protocol';
-import { DATA_ROOT, fail, requireString, SHELL_APP_ID } from './common';
+import { DATA_ROOT, fail, hasOwn, PERMISSIONS, requireString, SHELL_APP_ID } from './common';
 import { AppFiles } from './files';
+import { checkApprovedPermissions, claimDataFolder, installRecord } from './install';
+import { LinkOpener } from './links';
+import { fetchWithoutRedirects } from './net-fetch';
 import { Notifier } from './notifications';
 import { Registry, RegistryApp, toInstalledApp } from './registry';
 import { checkAppUrl, inspectUrl } from './site-info';
 import { AppStorage } from './storage';
 import { AppViews } from './views';
-
-const ALL_PERMISSIONS: Permission[] = ['storage', 'files', 'notifications', 'links'];
 
 /** Who made a call. Kobello UI is the "shell" and may use every method. */
 interface Caller {
@@ -35,26 +35,56 @@ export interface HostOptions {
   shellOrigin: string;
   /** Allows http://localhost apps. */
   devMode: boolean;
+  /** Lets developers open DevTools on app views. */
+  devTools: boolean;
   preloadPath: string;
 }
 
-export function startHost({ window, shellOrigin, devMode, preloadPath }: HostOptions) {
+export function startHost({ window, shellOrigin, devMode, devTools, preloadPath }: HostOptions) {
   const registry = new Registry(path.join(DATA_ROOT, SHELL_APP_ID, 'registry.json'));
-  const storages = new Map<string, AppStorage>();
   const appDir = (appId: string) => path.join(DATA_ROOT, appId);
+  // One storage and one files object per app, kept for the whole run: they remember sizes for the quotas.
+  const storages = new Map<string, AppStorage>();
   const storageFor = (appId: string) => {
     if (!storages.has(appId)) storages.set(appId, new AppStorage(path.join(appDir(appId), 'storage.json')));
     return storages.get(appId) as AppStorage;
   };
-  const filesFor = (appId: string) => new AppFiles(path.join(appDir(appId), 'files'));
-
-  /** Sends a host event to Kobello UI or to an app's view. */
-  const emit = <E extends EventName>(appId: string, event: E, payload: Events[E]) => {
-    const target = appId === SHELL_APP_ID ? window.webContents : views.webContentsFor(appId);
-    target?.send('kobello:event', event, payload);
+  const files = new Map<string, AppFiles>();
+  const filesFor = (appId: string) => {
+    if (!files.has(appId)) files.set(appId, new AppFiles(path.join(appDir(appId), 'files')));
+    return files.get(appId) as AppFiles;
   };
 
-  const views = new AppViews(window, preloadPath, (number) => emit(SHELL_APP_ID, 'shell.shortcut', { number }));
+  // Apps installed before data folders had owners: mark their folders now, while we know whose they are.
+  for (const record of registry.list()) {
+    if (record.kind !== 'kobello-app') continue;
+    try {
+      claimDataFolder(appDir(record.id), record);
+    } catch (error) {
+      console.error(`Couldn't mark the data folder of ${record.id}:`, error);
+    }
+  }
+
+  /**
+   * Sends a host event to Kobello UI or to an app's view, but only while that page is still on
+   * its own origin: an app that navigated elsewhere must not hear its events there.
+   */
+  const emit = <E extends EventName>(appId: string, event: E, payload: Events[E]) => {
+    if (window.isDestroyed()) return;
+    const target = appId === SHELL_APP_ID ? window.webContents : views.webContentsFor(appId);
+    const origin = appId === SHELL_APP_ID ? shellOrigin : registry.get(appId)?.origin;
+    if (!target || target.isDestroyed() || target.mainFrame.origin !== origin) return;
+    target.send('kobello:event', event, payload);
+  };
+
+  const links = new LinkOpener((url) => shell.openExternal(url));
+  const views = new AppViews({
+    window,
+    preloadPath,
+    devTools,
+    links,
+    onShortcut: (number) => emit(SHELL_APP_ID, 'shell.shortcut', { number }),
+  });
 
   const notifier = new Notifier((appId, id, tag) => {
     // Bring Kobello forward, then tell the app its notification was clicked.
@@ -71,13 +101,14 @@ export function startHost({ window, shellOrigin, devMode, preloadPath }: HostOpt
     }
   });
 
-  const shellInfo: AppInfo = { id: SHELL_APP_ID, name: 'Kobello', version: electronApp.getVersion(), permissions: ALL_PERMISSIONS };
+  const shellInfo: AppInfo = { id: SHELL_APP_ID, name: 'Kobello', version: electronApp.getVersion(), permissions: [...PERMISSIONS] };
 
   function identify(event: IpcMainInvokeEvent): Caller {
     const frame = event.senderFrame;
     // Only the page itself may call, not iframes inside it.
     if (!frame || frame !== event.sender.mainFrame) fail('PERMISSION_DENIED', 'Only the main page can use Kobello.');
-    const origin = new URL(frame.url).origin;
+    // The origin as Chromium sees it ("null" for data: pages and sandboxed frames), not one parsed from a URL.
+    const { origin } = frame;
 
     if (event.sender === window.webContents) {
       if (origin !== shellOrigin) fail('PERMISSION_DENIED', 'This page is not Kobello UI.');
@@ -112,7 +143,7 @@ export function startHost({ window, shellOrigin, devMode, preloadPath }: HostOpt
     const b = (value ?? {}) as Record<string, unknown>;
     const ok = ['x', 'y', 'width', 'height'].every((key) => typeof b[key] === 'number' && Number.isFinite(b[key]) && (b[key] as number) >= 0);
     if (!ok) fail('INVALID_ARGUMENT', 'Bounds need x, y, width and height as numbers ≥ 0.');
-    return { x: Math.round(b.x as number), y: Math.round(b.y as number), width: Math.round(b.width as number), height: Math.round(b.height as number) };
+    return { x: b.x as number, y: b.y as number, width: b.width as number, height: b.height as number };
   }
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -137,51 +168,16 @@ export function startHost({ window, shellOrigin, devMode, preloadPath }: HostOpt
 
     'notifications.show': (caller, options) => notifier.show(caller.info.id, caller.info.name, options),
 
-    'links.open': async (_caller, { url }) => {
-      const value = requireString(url, 'URL', 4096);
-      if (!/^(https?:|mailto:)/i.test(value)) fail('INVALID_ARGUMENT', 'Only http, https and mailto links can be opened.');
-      await shell.openExternal(value);
-    },
+    'links.open': (caller, { url }) => links.open(caller.info.id, requireString(url, 'URL', 4096)),
 
     'shell.apps.list': () => registry.list().map(toInstalledApp),
-    'shell.apps.inspect': (_caller, { url }) => inspectUrl(url, net.fetch, devMode),
-    'shell.apps.install': async (_caller, { url, name }) => {
-      const result = await inspectUrl(url, net.fetch, devMode);
-      const origin = new URL(result.url).origin;
-      const displayName = name === undefined ? undefined : requireString(name, 'Name', 80).trim() || undefined;
-      let record: RegistryApp;
-
-      if (result.kind === 'kobello-app') {
-        const existing = registry.get(result.manifest.id);
-        if (existing && existing.origin !== origin) {
-          fail('ALREADY_EXISTS', `An app with ID "${result.manifest.id}" is already installed from ${existing.origin}.`);
-        }
-        record = {
-          id: result.manifest.id,
-          kind: 'kobello-app',
-          name: displayName ?? existing?.name ?? result.manifest.name,
-          url: result.url,
-          iconUrl: result.iconUrl,
-          permissions: result.manifest.permissions,
-          origin,
-          version: result.manifest.version,
-          installedAt: existing?.installedAt ?? new Date().toISOString(),
-        };
-      } else {
-        // The same website twice: keep the one we have.
-        const existing = registry.list().find((app) => app.kind === 'website' && app.url === result.url);
-        record = existing ?? {
-          id: `site-${randomUUID()}`,
-          kind: 'website',
-          name: displayName ?? result.name ?? new URL(result.url).hostname,
-          url: result.url,
-          iconUrl: result.iconUrl,
-          permissions: [],
-          origin,
-          installedAt: new Date().toISOString(),
-        };
-      }
-
+    'shell.apps.inspect': (_caller, { url }) => inspectUrl(url, fetchWithoutRedirects, devMode),
+    'shell.apps.install': async (_caller, { url, name, permissions }) => {
+      const approved = checkApprovedPermissions(permissions);
+      // Look at the site again: what gets installed is what it serves now, checked against what the user approved.
+      const result = await inspectUrl(url, fetchWithoutRedirects, devMode);
+      const record = installRecord(result, approved, name, registry);
+      if (record.kind === 'kobello-app') claimDataFolder(appDir(record.id), record);
       registry.put(record);
       // Load the app once now, so its service worker caches it for offline use.
       const offlineReady = await views.warmUp(record);
@@ -200,12 +196,20 @@ export function startHost({ window, shellOrigin, devMode, preloadPath }: HostOpt
     'shell.apps.uninstall': async (_caller, { appId, deleteData }) => {
       const record = getApp(appId);
       views.close(record.id);
-      registry.remove(record.id);
       if (deleteData === true) {
+        // Delete first and forget the app last: if deleting fails, the app stays in the list and
+        // the user can try again, instead of data left behind with no app to remove it by.
         storages.delete(record.id);
-        fs.rmSync(appDir(record.id), { recursive: true, force: true });
-        await views.clearBrowserData(record.id);
+        files.delete(record.id);
+        try {
+          await views.clearBrowserData(record.id);
+          await fs.promises.rm(appDir(record.id), { recursive: true, force: true });
+        } catch (error) {
+          console.error(`Couldn't delete the data of ${record.id}:`, error);
+          fail('INTERNAL', `Couldn't delete everything ${record.name} saved. Try removing it again.`);
+        }
       }
+      registry.remove(record.id);
     },
     'shell.views.show': (_caller, { appId, bounds }) => views.show(getApp(appId), checkBounds(bounds)),
     'shell.views.hideAll': () => views.hideAll(),
@@ -216,15 +220,16 @@ export function startHost({ window, shellOrigin, devMode, preloadPath }: HostOpt
   ipcMain.handle('kobello:invoke', async (event, request): Promise<Response> => {
     try {
       const method = String(request?.method);
+      if (request?.v !== PROTOCOL_VERSION) fail('UNSUPPORTED', "This page's Kobello SDK and this version of Kobello don't work together.");
       const caller = identify(event);
       const permission = requiredPermission(method);
       if (permission === 'shell' && !caller.isShell) fail('PERMISSION_DENIED', 'Only Kobello UI can use the shell API.');
       if (permission && permission !== 'shell' && !caller.info.permissions.includes(permission)) {
         fail('PERMISSION_DENIED', `Add "${permission}" to the permissions in kobello.json.`);
       }
-      const handler = handlers[method];
-      if (!handler) fail('UNSUPPORTED', `This version of Kobello doesn't support "${method}".`);
-      return { ok: true, value: await handler(caller, request?.args ?? {}) };
+      // Own keys only: "constructor" is on every object, but it isn't a method of the host.
+      if (!hasOwn(handlers, method)) fail('UNSUPPORTED', `This version of Kobello doesn't support "${method}".`);
+      return { ok: true, value: await handlers[method](caller, request.args ?? {}) };
     } catch (error) {
       if (error instanceof KobelloError) return { ok: false, error: { code: error.code, message: error.message } };
       console.error('Kobello host error:', error);

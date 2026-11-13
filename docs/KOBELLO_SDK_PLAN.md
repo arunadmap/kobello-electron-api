@@ -77,10 +77,12 @@ The new design keeps the package easy to use (`await kobello.files.write(...)`) 
 
 ### Key rules
 - **Identity comes from the host, never from the caller.** Main keeps a `Map<webContents.id, AppRecord>` filled when it creates each view. A call's `appId` comes from `event.sender`, never from the call's arguments.
-- **Origin check on every call.** If an app view navigates to a different origin (a login page, an ad), the SDK stops working there: `event.senderFrame.url` must match the app's registered origin.
+- **Origin check on every call.** If an app view navigates to a different origin (a login page, an ad), the SDK stops working there: `event.senderFrame.origin` must match the app's registered origin. Events are only sent to a view that is still on that origin.
 - **Main frame only.** Calls from iframes inside an app are rejected (`event.senderFrame` must be the main frame).
-- **Kobello UI is a system app** (`appId: "kobello.shell"`). Only the shell window's webContents gets the `shell.*` methods, and only while it's on the configured Kobello UI origin (`TARGET_URL`, plus `http://localhost:5173` in developer mode).
-- **Every view:** `contextIsolation: true`, `sandbox: true`, `nodeIntegration: false`, and a per-app session `partition: 'persist:app-<appId>'` so apps can't read each other's cookies or localStorage.
+- **Kobello UI is a system app** (`appId: "kobello.shell"`). Only the shell window's webContents gets the `shell.*` methods, and only while it's on the Kobello UI origin. The packaged app always uses the published Kobello UI; `KOBELLO_UI_URL` only works when running from source. Navigations and redirects that would leave that origin are blocked.
+- **Every view:** `contextIsolation: true`, `sandbox: true`, `nodeIntegration: false`, no DevTools in the packaged app, and a per-app session `partition: 'persist:app-<appId>'` so apps can't read each other's cookies or localStorage.
+- **Web permissions are denied by default.** Electron grants every web permission unless told otherwise, so every session (the default one and each app's) refuses all permission requests, permission checks and device access. The only exception is `clipboard-sanitized-write`. `openExternal` is always refused, so a page can't launch another program by navigating to its link (`search-ms:`, `ms-msdt:`, ...).
+- **App IDs are self-asserted, so data has an owner.** Installing a Kobello app records its origin in `~/kobello/data/<appId>/owner.json`. A folder that belongs to another origin is never handed to a new app with the same ID. Folders without an owner file are adopted.
 
 ### Wire protocol (internal, versioned)
 One IPC channel, `kobello:invoke`:
@@ -91,6 +93,8 @@ One IPC channel, `kobello:invoke`:
 // response
 { ok: true, value: ... } | { ok: false, error: { code: 'PERMISSION_DENIED', message: '...' } }
 ```
+
+A request with another `v`, or a method the host doesn't have, gets `UNSUPPORTED`.
 
 Events from main to an app (notification clicked, etc.) arrive on `kobello:event`. The preload exposes only a tiny, frozen surface:
 
@@ -128,7 +132,6 @@ await kobello.storage.set(key: string, value: JsonValue): void
 await kobello.storage.delete(key: string): void
 await kobello.storage.keys(): string[]
 await kobello.storage.clear(): void
-kobello.storage.onChange(cb: (key: string) => void): () => void   // change made by another view of the same app
 ```
 Limits (v1): key ≤ 256 chars, value ≤ 1 MB serialized, total ≤ 10 MB per app → `QUOTA_EXCEEDED`.
 Disk: `storage.json`, written atomically (write a temp file, then rename) and debounced.
@@ -146,7 +149,7 @@ await kobello.files.rename(from, to): void          // file or folder
 
 interface FileInfo { path: string; name: string; type: 'file' | 'dir'; size: number; modifiedAt: string }
 ```
-Rules enforced by the host: no absolute paths, no `..` escaping, no following symlinks out of the folder (resolve with `realpath` and check it's still inside the root), max file size 50 MB (v1), reject Windows reserved names (`CON`, `NUL`, …).
+Rules enforced by the host: no absolute paths, no `..` escaping, no following symlinks out of the folder (resolve with `realpath` and check it's still inside the root), max file size 50 MB, at most 1 GB and 10,000 files and folders per app (`QUOTA_EXCEEDED`), reject names Windows reads differently (`CON`, `NUL`, `COM¹`, `CONIN$`, a trailing dot or space, …).
 Picking files from anywhere on disk (open/save dialogs) is a **later** feature.
 
 ### 4.4 Notifications — `kobello.notifications` (permission `notifications`)
@@ -162,6 +165,7 @@ Limits: title ≤ 100 chars, body ≤ 500, at most 10 notifications per minute p
 await kobello.links.open(url: string): void   // opens in the user's default browser
 ```
 Only `https:`, `http:` and `mailto:` are allowed (`INVALID_ARGUMENT` otherwise). Uses `shell.openExternal`.
+At most 5 links per app every 10 seconds (`RATE_LIMITED`). `window.open` and `target="_blank"` in an app share that limit, and only open a link while the app is on screen.
 
 ### 4.6 Errors
 Every method returns a Promise that rejects with `KobelloError`:
@@ -174,8 +178,8 @@ Every method returns a Promise that rejects with `KobelloError`:
 | `NOT_FOUND` | File, folder or key missing (where that isn't a normal `undefined`) |
 | `ALREADY_EXISTS` | `mkdir`/`rename` target exists |
 | `QUOTA_EXCEEDED` | Storage or file size limit |
-| `RATE_LIMITED` | Too many notifications |
-| `UNSUPPORTED` | The host is older than the SDK and lacks the method |
+| `RATE_LIMITED` | Too many notifications or links |
+| `UNSUPPORTED` | The host lacks the method, or the SDK's protocol version doesn't match the host's |
 | `INTERNAL` | Anything else (message logged on the host) |
 
 ### 4.7 Shell-only API — `@kobello/sdk/shell` (Kobello UI only)
@@ -184,7 +188,7 @@ This replaces the ad-hoc `window.kobello` bridge in `Kobello/src/bridge.ts`. Cal
 import { shell } from '@kobello/sdk/shell';
 await shell.apps.list(): InstalledApp[]            // everything in the sidebar
 await shell.apps.inspect(url): { kind: 'kobello-app', manifest, iconUrl? } | { kind: 'website', name?, iconUrl? }
-await shell.apps.install(url, name?): InstalledApp // Kobello app (validates the manifest) or plain website
+await shell.apps.install(url, { name?, permissions }): InstalledApp // permissions: what the user approved after inspect
 await shell.apps.update(appId, { name?, iconUrl? }): InstalledApp
 await shell.apps.uninstall(appId, { deleteData: boolean }): void
 await shell.views.show(appId, bounds): void
@@ -218,20 +222,21 @@ A Kobello app is a normal web app that serves **`/kobello.json`** from its origi
   "description": "Simple notes saved on your computer.",
   "start_url": "/",
   "icon": "/icons/icon-192.png",
-  "permissions": ["storage", "files", "notifications", "links"],
-  "sdk": "^1.0.0"
+  "permissions": ["storage", "files", "notifications", "links"]
 }
 ```
 
 Install flow (in Kobello UI's Add app dialog):
 1. User pastes a URL → `shell.apps.inspect(url)` (main fetches `<origin>/kobello.json` with `net.fetch`).
-2. **Manifest found and valid:** show name, icon and the **permissions it asks for**. The user clicks Install → `shell.apps.install(url)`. Main records `{ appId, origin, permissions, version }` in `~/kobello/data/kobello.shell/registry.json`.
+2. **Manifest found and valid:** show name, icon and the **permissions it asks for**. The user clicks Install → `shell.apps.install(url, { permissions })` with the permissions they just approved. Main fetches the manifest again; if it now asks for a permission that wasn't approved, the install fails with `PERMISSION_DENIED` ("… now asks for different permissions. Check it again."). Otherwise main records `{ appId, origin, permissions, version }` in `~/kobello/data/kobello.shell/registry.json`.
 3. **No manifest:** add it as a plain website (no preload, no SDK), as today.
 
 Rules:
-- `id` must match `^[a-z0-9]+(\.[a-z0-9-]+)+$`. An ID already installed from a different origin is rejected.
-- `https:` only, except `http://localhost:*` when **Developer mode** is on in Kobello settings.
-- If `permissions` grows when the manifest updates, the app keeps the old set until the user approves the new ones (v1 can show a simple "This app wants new permissions" prompt the next time it opens).
+- `id` must match `^[a-z0-9]+(\.[a-z0-9-]+)+$`. An ID already installed from a different origin is rejected, and so is an ID whose data folder belongs to a different origin (`owner.json`).
+- `/kobello.json` must come from the app's own origin: a redirect to another origin doesn't count. The host follows redirects itself (at most 5) and checks every hop like a URL the user typed. It reads at most 64 KB of JSON and 512 KB of HTML.
+- The host keeps only the manifest fields it knows, with length limits (name ≤ 80, version ≤ 50, description ≤ 300, `icon` and `start_url` ≤ 2048). Icons must be `https:` (or `data:image/…`); others are dropped.
+- `https:` only, except `http://localhost` and `http://127.0.0.1` in **developer mode** (running from source, or `KOBELLO_DEV=1`).
+- If `permissions` grows when the manifest updates, the app keeps the set recorded at install. The user sees and approves the new set by adding the app again (same origin, so it updates the existing entry and keeps its data).
 
 ### 5.1 Offline (every app is a PWA)
 
@@ -289,11 +294,11 @@ Result:
 - Code: `src/host/` (`router.ts`, `views.ts`, `storage.ts`, `files.ts`, `registry.ts`, `site-info.ts`, `notifications.ts`, `common.ts`) and one shared `src/preload.ts` for Kobello UI and Kobello apps (the main process decides who may do what). The Express server is removed; nothing listens on a port.
 - 13 unit tests (file confinement incl. a link pointing outside, storage limits, registry, manifest and URL checks, website info, network errors).
 - End-to-end on the packaged app with local test servers: install with `offlineReady: true` for a PWA and `false` for a site without a service worker; every SDK call from the app; path escapes, shell methods, undeclared permissions and unknown methods refused; iframes inside an app and plain websites get no bridge; after a restart with the app's server shut down the PWA opened from its cache with its data and files; the plain website showed the offline page; uninstall with `deleteData` removed the data folder and the service worker caches.
-- Developer mode: running from source or `KOBELLO_DEV=1`. Allows `http://localhost` apps, and `KOBELLO_UI_URL` points the window at a local Kobello UI.
+- Developer mode: running from source or `KOBELLO_DEV=1`. Allows `http://localhost` apps. `KOBELLO_UI_URL` points the window at another Kobello UI, only when running from source.
 - SDK additions: `offlineReady` on install and a `NETWORK_ERROR` code.
 
 Known v1 limits:
-- `storage.onChange` never fires yet: each app has a single view, so there's no other window to hear from.
+- `storage.onChange` was removed from the SDK: each app has a single view, so there was never another window to hear from.
 - Clicking a notification focuses Kobello and tells the app, but Kobello UI doesn't switch to that app yet (would need a `shell.*` event).
 - Until Phase 3, the live Kobello UI still shows apps in iframes and keeps its list in localStorage; the old `window.kobello` bridge no longer exists.
 
@@ -342,7 +347,7 @@ Result:
 - The SDK is still installed locally (`file:` links) in Kobello UI and the example; the guide explains how until it's on npm.
 
 Local development (until Kobello UI is published):
-- `npm start` in `kobello-electron-api` shows the local Kobello UI dev server (`http://127.0.0.1:5173/`, `npm run dev` in `Kobello`). The packaged app still shows the published Kobello UI. `KOBELLO_UI_URL` overrides either in developer mode. See the desktop app's README.
+- `npm start` in `kobello-electron-api` shows the local Kobello UI dev server (`http://127.0.0.1:5173/`, `npm run dev` in `Kobello`). The packaged app always shows the published Kobello UI. `KOBELLO_UI_URL` overrides the local one when running from source. See the desktop app's README.
 
 ### Phase 5 — Later (not in v1)
 Browser fallback for Kobello UI · app approval/review and signing · file open/save dialogs · per-permission toggles in settings · background tasks · app-to-app messaging · iframe transport · auto-update for the Electron app.
@@ -360,6 +365,11 @@ Browser fallback for Kobello UI · app approval/review and signing · file open/
 - [ ] `contextIsolation`, `sandbox` and no `nodeIntegration` on every webContents.
 - [ ] The shell API works only for the shell window on the configured Kobello UI origin.
 - [ ] `localhost` apps only in Developer mode.
+- [ ] Web permissions, device access and `openExternal` are denied in every session (only clipboard writing is allowed).
+- [ ] The packaged app ignores `KOBELLO_UI_URL`, has no DevTools, and blocks navigations and redirects away from Kobello UI.
+- [ ] Install stores only permissions the user approved; a data folder is only used by the origin that owns it.
+- [ ] Site checks follow redirects by hand, re-check every hop, and cap how much they read.
+- [ ] Files have a per-app quota (size and count); links opened by apps are rate-limited.
 
 ---
 

@@ -1,19 +1,22 @@
-import { app, BrowserWindow, shell } from 'electron';
+import { app, BrowserWindow, Menu, session, shell } from 'electron';
+import { isExternalLink } from './host/common';
 import { startHost } from './host/router';
+import { denyWebPermissions } from './host/web-permissions';
 
 declare const MAIN_WINDOW_PRELOAD_WEBPACK_ENTRY: string;
 
-// Developer mode: running from source, or KOBELLO_DEV=1. It allows http://localhost apps,
-// and KOBELLO_UI_URL can point the window at another Kobello UI.
+// Developer mode: running from source, or KOBELLO_DEV=1. It allows http://localhost apps.
 const DEV_MODE = !app.isPackaged || process.env.KOBELLO_DEV === '1';
 
 // Which Kobello UI the window shows:
 // - running from source (npm start): the local dev server of the Kobello UI project (npm run dev there),
 // - the installed app: the published Kobello UI. Its service worker caches it, so it keeps
 //   working offline after the first successful launch.
+// KOBELLO_UI_URL can point a build run from source at another Kobello UI. The installed app ignores it,
+// even with KOBELLO_DEV=1: whatever page the window shows controls every app and all their data.
 const LOCAL_UI_URL = 'http://127.0.0.1:5173/';
 const PUBLISHED_UI_URL = 'https://kobello-ui.vercel.app/';
-const SHELL_URL = (DEV_MODE && process.env.KOBELLO_UI_URL) || (app.isPackaged ? PUBLISHED_UI_URL : LOCAL_UI_URL);
+const SHELL_URL = app.isPackaged ? PUBLISHED_UI_URL : (process.env.KOBELLO_UI_URL || LOCAL_UI_URL);
 const SHELL_ORIGIN = new URL(SHELL_URL).origin;
 
 // Squirrel (the Windows installer) starts the app during install/uninstall; quit right away.
@@ -31,8 +34,37 @@ app.setAppUserModelId(app.isPackaged ? 'com.squirrel.kobello.Kobello' : process.
 
 let mainWindow: BrowserWindow | null = null;
 
-/** Links that may be handed to the user's default browser. */
-const isExternalLink = (url: string) => /^(https?:|mailto:)/i.test(url);
+/** True for pages of Kobello UI itself, the only pages the window may show. */
+const isShellUrl = (url: string): boolean => {
+  try {
+    return new URL(url).origin === SHELL_ORIGIN;
+  } catch {
+    return false;
+  }
+};
+
+// Every session denies web permissions (camera, location, ...) by default. App sessions are created
+// later, one per app, so this listens for new sessions; it's in place before any page loads.
+app.on('session-created', denyWebPermissions);
+
+/** Opens a link from Kobello UI in the user's default browser or mail app. */
+const openExternal = (url: string): void => {
+  if (!isExternalLink(url)) return;
+  shell.openExternal(url).catch((error) => console.error(`Couldn't open ${url}:`, error));
+};
+
+/**
+ * The installed app's menu: only what's needed for the usual shortcuts (copy, paste, quit, close).
+ * No reload, page zoom or DevTools items. Running from source keeps Electron's default menu.
+ */
+const setMinimalMenu = (): void => {
+  const isMac = process.platform === 'darwin';
+  Menu.setApplicationMenu(Menu.buildFromTemplate([
+    ...(isMac ? [{ role: 'appMenu' } as const] : []),
+    { role: 'editMenu' },
+    ...(isMac ? [{ role: 'windowMenu' } as const] : []),
+  ]));
+};
 
 /** Shown when Kobello UI has never been downloaded and there's no internet. */
 const firstLaunchOfflinePage = () => `data:text/html;charset=utf-8,${encodeURIComponent(`<!doctype html>
@@ -52,20 +84,23 @@ const createWindow = (): void => {
       contextIsolation: true,
       sandbox: true,
       nodeIntegration: false,
+      devTools: !app.isPackaged,
     },
   });
 
   // Keep the window on Kobello UI. Links that try to leave it open in the default browser.
-  mainWindow.webContents.on('will-navigate', (event) => {
-    if (new URL(event.url).origin !== SHELL_ORIGIN) {
-      event.preventDefault();
-      if (isExternalLink(event.url)) shell.openExternal(event.url);
-    }
-  });
+  // Redirects are checked too: a Kobello UI link could answer with a redirect to another site.
+  const stayOnKobelloUi = (event: Electron.Event, url: string, isMainFrame: boolean) => {
+    if (!isMainFrame || isShellUrl(url)) return;
+    event.preventDefault();
+    openExternal(url);
+  };
+  mainWindow.webContents.on('will-navigate', (event) => stayOnKobelloUi(event, event.url, event.isMainFrame));
+  mainWindow.webContents.on('will-redirect', (event) => stayOnKobelloUi(event, event.url, event.isMainFrame));
 
   // New windows (target="_blank", window.open) open in the default browser, never inside Electron.
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
-    if (isExternalLink(url)) shell.openExternal(url);
+    openExternal(url);
     return { action: 'deny' };
   });
 
@@ -88,6 +123,7 @@ const createWindow = (): void => {
     window: mainWindow,
     shellOrigin: SHELL_ORIGIN,
     devMode: DEV_MODE,
+    devTools: !app.isPackaged,
     preloadPath: MAIN_WINDOW_PRELOAD_WEBPACK_ENTRY,
   });
 
@@ -105,7 +141,11 @@ app.on('second-instance', () => {
   mainWindow.focus();
 });
 
-app.whenReady().then(createWindow);
+app.whenReady().then(() => {
+  denyWebPermissions(session.defaultSession);
+  if (app.isPackaged) setMinimalMenu();
+  createWindow();
+});
 
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') {

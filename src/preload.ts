@@ -3,8 +3,7 @@
 // It only forwards messages: the main process decides who is calling and what they may do.
 
 import { contextBridge, ipcRenderer, IpcRendererEvent } from 'electron';
-
-const PROTOCOL_VERSION = 1;
+import { PROTOCOL_VERSION } from '@kobello/sdk/protocol';
 
 contextBridge.exposeInMainWorld('__kobello', {
   v: PROTOCOL_VERSION,
