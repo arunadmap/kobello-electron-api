@@ -1,4 +1,4 @@
-import { app, BrowserWindow, Menu, session, shell } from 'electron';
+import { app, BrowserWindow, Menu, nativeTheme, session, shell } from 'electron';
 import { isExternalLink } from './host/common';
 import { startHost } from './host/router';
 import { denyWebPermissions } from './host/web-permissions';
@@ -72,13 +72,15 @@ const firstLaunchOfflinePage = () => `data:text/html;charset=utf-8,${encodeURICo
 <body style="font:15px system-ui;display:grid;place-content:center;height:100vh;margin:0;text-align:center;color:#555">
 <h2 style="color:#222;margin:0 0 8px">Connect to the internet to set up Kobello</h2>
 <p style="margin:0 0 20px">Kobello needs the internet the first time it opens. After that it works offline.</p>
-<a href="${SHELL_URL}" style="color:#2563eb;font-weight:600">Try again</a></body>`)}`;
+<a href="${SHELL_URL}" style="color:#3355ff;font-weight:600">Try again</a></body>`)}`;
 
 const createWindow = (): void => {
   mainWindow = new BrowserWindow({
     height: 700,
     width: 1000,
     autoHideMenuBar: true,
+    // Kobello UI's desk colour, so the window doesn't flash white before the UI paints.
+    backgroundColor: nativeTheme.shouldUseDarkColors ? '#111215' : '#f3f2ee',
     webPreferences: {
       preload: MAIN_WINDOW_PRELOAD_WEBPACK_ENTRY,
       contextIsolation: true,
