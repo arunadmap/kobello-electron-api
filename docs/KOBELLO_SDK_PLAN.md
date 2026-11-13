@@ -21,7 +21,7 @@ Plus a fourth deliverable: an **open-source developer guide** for building Kobel
 | 1 | Should Kobello UI and apps work in a normal browser? | **No, for now.** Electron only. Keep the design open to a browser fallback later. |
 | 2 | Which apps get the SDK? | **Only apps built for Kobello**, meaning apps that publish a Kobello manifest (section 5). An approval process comes later. Plain websites can still be added to the sidebar, but they get **no** SDK access. |
 | 3 | What the SDK covers in v1 | **Files, key/value storage, notifications, opening links, the app's own info.** |
-| 4 | Package name | **`@kobello/sdk`** (npm scope `@kobello`). |
+| 4 | Package name | **`@kobello-electron/sdk`** (npm scope `@kobello-electron`). |
 | 5 | Where app data lives | **`~/kobello/data/<appId>/`**. |
 | 6 | Uninstalling an app | **Ask** whether to delete its data, with "Keep data" preselected. |
 | 7 | Electron app name | **Rename `my-app` to `kobello`** (done). |
@@ -31,7 +31,7 @@ Plus a fourth deliverable: an **open-source developer guide** for building Kobel
 
 | Topic | Choice | Why |
 |---|---|---|
-| Package name | `@kobello/sdk` (npm scope `@kobello`) | Easy to find, and room for `@kobello/create-app` etc. later. The current name `kobello-package` is generic. |
+| Package name | `@kobello-electron/sdk` (npm scope `@kobello-electron`) | Easy to find, and room for `@kobello-electron/create-app` etc. later. The current name `kobello-package` is generic. |
 | How calls travel | **Electron IPC through a preload script**, not HTTP to `localhost:5050` | The host knows exactly which app is calling, and no network port is open (see section 2). |
 | Where apps run | One **`WebContentsView` per app** (Kobello UI's `showApp` bridge already expects this) | Each app gets its own preload, its own storage partition, and a known identity. |
 | Where data lives | `~/kobello/data/<appId>/` (`storage.json` + `files/`) | Keeps the existing `~/kobello` convention, and users can find their files. |
@@ -70,7 +70,7 @@ The new design keeps the package easy to use (`await kobello.files.write(...)`) 
 │  Kobello UI (Vercel URL)    │          │  Kobello app (any https URL + manifest)  │
 │  preload: shell-preload     │          │  preload: app-preload                    │
 │  window.__kobello (+ shell) │          │  window.__kobello                        │
-│  └─ @kobello/sdk            │          │  └─ @kobello/sdk                         │
+│  └─ @kobello-electron/sdk            │          │  └─ @kobello-electron/sdk                         │
 └─────────────────────────────┘          └──────────────────────────────────────────┘
     Plain websites (no manifest) → WebContentsView with NO preload, no SDK
 ```
@@ -109,7 +109,7 @@ The SDK wraps it. App code never touches `window.__kobello` directly, so the pro
 ## 4. Public SDK API (v1)
 
 ```ts
-import { kobello, KobelloError } from '@kobello/sdk';
+import { kobello, KobelloError } from '@kobello-electron/sdk';
 
 kobello.isAvailable(): boolean                 // false outside the Kobello desktop app
 kobello.version: string                        // SDK version
@@ -182,10 +182,10 @@ Every method returns a Promise that rejects with `KobelloError`:
 | `UNSUPPORTED` | The host lacks the method, or the SDK's protocol version doesn't match the host's |
 | `INTERNAL` | Anything else (message logged on the host) |
 
-### 4.7 Shell-only API — `@kobello/sdk/shell` (Kobello UI only)
+### 4.7 Shell-only API — `@kobello-electron/sdk/shell` (Kobello UI only)
 This replaces the ad-hoc `window.kobello` bridge in `Kobello/src/bridge.ts`. Calls from any other app get `PERMISSION_DENIED`.
 ```ts
-import { shell } from '@kobello/sdk/shell';
+import { shell } from '@kobello-electron/sdk/shell';
 await shell.apps.list(): InstalledApp[]            // everything in the sidebar
 await shell.apps.inspect(url): { kind: 'kobello-app', manifest, iconUrl? } | { kind: 'website', name?, iconUrl? }
 await shell.apps.install(url, { name?, permissions }): InstalledApp // permissions: what the user approved after inspect
@@ -199,10 +199,10 @@ shell.onShortcut(cb: (n: number) => void): () => void
 ```
 The **host's registry is the source of truth for installed apps**, because it also decides each app's identity and permissions. Kobello UI reads it with `shell.apps.list()` and keeps only its own UI state (sidebar order, the active app) in `kobello.storage` under its system app ID. That's the "stop using localStorage" requirement. Kobello UI opens links with the normal `kobello.links.open`.
 
-### 4.8 Testing helper — `@kobello/sdk/mock`
+### 4.8 Testing helper — `@kobello-electron/sdk/mock`
 An in-memory implementation of the same API, so app developers can unit-test, or preview in a normal browser during development, without Electron:
 ```ts
-import { installMock } from '@kobello/sdk/mock';
+import { installMock } from '@kobello-electron/sdk/mock';
 installMock({ app: { id: 'com.example.notes', permissions: ['storage', 'files'] } });
 ```
 This is **not** a production browser fallback (decision 1). It's a dev tool.
@@ -274,7 +274,7 @@ Plain websites follow the same rules. They work offline only if the site has its
 - Unit tests (vitest) against a fake `window.__kobello`: argument checks, error mapping, event unsubscribe, mock parity.
 - `protocol.ts` is imported by the Electron host too, so both sides share one source of truth for method names and types.
 **Done when:** `npm run build` and the tests pass, and `npm pack` produces a package that installs into a Vite app.
-Result: 16 tests pass; a packed build type-checks, builds and runs in a fresh Vite + TypeScript app. The package ships ESM with a `default` export condition, so the Electron host's webpack (CommonJS) build can import `@kobello/sdk/protocol` too.
+Result: 16 tests pass; a packed build type-checks, builds and runs in a fresh Vite + TypeScript app. The package ships ESM with a `default` export condition, so the Electron host's webpack (CommonJS) build can import `@kobello-electron/sdk/protocol` too.
 
 ### Phase 2 — Electron host (`kobello-electron-api`) ✓ (2026-10-20)
 Already done before Phase 1 (cleanup on 2026-10-20): app renamed to `kobello` / `Kobello`, the main window loads `TARGET_URL` directly (no `downloadPWA` snapshot), `webSecurity: false`, the global CSP override and forced DevTools removed, single-instance lock, external links open in the default browser, and the Express server bound to `127.0.0.1` with paths confined to `~/kobello`.
@@ -303,8 +303,8 @@ Known v1 limits:
 - Until Phase 3, the live Kobello UI still shows apps in iframes and keeps its list in localStorage; the old `window.kobello` bridge no longer exists.
 
 ### Phase 3 — Kobello UI (`Kobello`) ✓ (2026-10-20)
-- Add `@kobello/sdk` (local `npm link` / `file:` dependency until it's published).
-- Replace `src/bridge.ts` with `@kobello/sdk/shell`.
+- Add `@kobello-electron/sdk` (local `npm link` / `file:` dependency until it's published).
+- Replace `src/bridge.ts` with `@kobello-electron/sdk/shell`.
 - Load the app list from `shell.apps.list()` and keep UI state (order, active app) in `kobello.storage`. On first run, **import the old localStorage apps once** (install each through `shell.apps.install`) and then delete the old data.
 - Add app dialog: call `shell.apps.inspect`. Show a permission prompt for Kobello apps, or "Website" for plain sites. After installing, show "Ready offline", or a warning if the app's service worker didn't activate.
 - Outside Electron (`!kobello.isAvailable()`): show a short "Open Kobello Desktop" screen instead of a broken UI (decision 1).
@@ -319,7 +319,7 @@ Result:
 - Checks: 17 unit tests and the build pass. End to end in the packaged app with the real UI build: migration, add (check → permissions → install), switching, rename, remove with data deletion, and a restart with **every** server stopped (Kobello UI, the app list, the last open app and its data all came back from cache).
 
 Before deploying Kobello UI to Vercel:
-- **`@kobello/sdk` is a local `file:../kobello-package` dependency**, which Vercel can't build. Publish the SDK to npm (needs the `@kobello` scope), or push `kobello-package` and depend on it from GitHub, then update `Kobello/package.json`.
+- **`@kobello-electron/sdk` is published on npm** (`^0.1.0`), so Vercel can install it. (Earlier it was a local `file:../kobello-package` dependency, which Vercel couldn't build.)
 - Deploy Kobello UI only together with (or after) the new desktop app: the old desktop app has no `window.__kobello`, so the new UI would show "Open Kobello on your computer" there.
 
 Known limits:
@@ -329,12 +329,12 @@ Known limits:
 - `examples/notes`: a small Vite + React PWA (`vite-plugin-pwa`) using storage, files, notifications and links, with a `kobello.json`. It must work offline.
 - **Guide** (Markdown, in a public repo or docs site):
   1. What a Kobello app is
-  2. Quick start (create a Vite app, add `@kobello/sdk`, add `kobello.json`)
+  2. Quick start (create a Vite app, add `@kobello-electron/sdk`, add `kobello.json`)
   3. Run it in Kobello with Developer mode + `localhost`
   4. API reference for each module (generated from the TypeScript docs)
   5. Permissions and the manifest
   6. Errors and limits
-  7. Testing with `@kobello/sdk/mock`
+  7. Testing with `@kobello-electron/sdk/mock`
   8. Make your app work offline: add a service worker that precaches the whole app (`vite-plugin-pwa`), keep data in the SDK, and test it in Kobello with the network off
   9. Publishing (host it on any https URL)
 - Later, maybe a `npm create kobello-app` template.

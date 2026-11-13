@@ -9,9 +9,9 @@
 import path from 'path';
 import fs from 'fs';
 import { app as electronApp, BrowserWindow, ipcMain, IpcMainInvokeEvent, shell } from 'electron';
-import { KobelloError } from '@kobello/sdk';
-import type { AppInfo, Bounds, EventName, Events, Permission, Response } from '@kobello/sdk/protocol';
-import { PROTOCOL_VERSION } from '@kobello/sdk/protocol';
+import { KobelloError } from '@kobello-electron/sdk';
+import type { AppInfo, Bounds, EventName, Events, Permission, Response } from '@kobello-electron/sdk/protocol';
+import { PROTOCOL_VERSION } from '@kobello-electron/sdk/protocol';
 import { DATA_ROOT, fail, hasOwn, PERMISSIONS, requireString, SHELL_APP_ID } from './common';
 import { AppFiles } from './files';
 import { checkApprovedPermissions, claimDataFolder, installRecord } from './install';

@@ -3,8 +3,8 @@
 import fs from 'fs';
 import os from 'os';
 import path from 'path';
-import { KobelloError } from '@kobello/sdk';
-import type { Bounds, ErrorCode, Permission } from '@kobello/sdk/protocol';
+import { KobelloError } from '@kobello-electron/sdk';
+import type { Bounds, ErrorCode, Permission } from '@kobello-electron/sdk/protocol';
 
 /** Every app's data lives in ~/kobello/data/<appId>/ (owner.json, storage.json and files/). */
 export const DATA_ROOT = path.join(os.homedir(), 'kobello', 'data');

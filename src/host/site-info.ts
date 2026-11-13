@@ -4,7 +4,7 @@
 // redirects itself: it returns the 3xx response, and this module follows it one hop at a time, so a
 // site can't send the host to an address the user couldn't have typed.
 
-import type { AppManifest, InspectResult, Permission } from '@kobello/sdk/protocol';
+import type { AppManifest, InspectResult, Permission } from '@kobello-electron/sdk/protocol';
 import { fail, PERMISSIONS, SHELL_APP_ID } from './common';
 import { isReservedName } from './files';
 

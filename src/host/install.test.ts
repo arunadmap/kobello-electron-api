@@ -2,7 +2,7 @@ import fs from 'fs';
 import os from 'os';
 import path from 'path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { InspectResult } from '@kobello/sdk/protocol';
+import type { InspectResult } from '@kobello-electron/sdk/protocol';
 import { hasOwn, isExternalLink, RateLimiter, scaleBounds, withTimeout } from './common';
 import { checkApprovedPermissions, claimDataFolder, installRecord } from './install';
 import { LinkOpener } from './links';

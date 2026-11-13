@@ -1,7 +1,7 @@
 // Key/value storage for one app, kept in <app folder>/storage.json.
 
 import fs from 'fs';
-import type { JsonValue } from '@kobello/sdk/protocol';
+import type { JsonValue } from '@kobello-electron/sdk/protocol';
 import { fail, requireString, writeFileAtomic } from './common';
 
 const MAX_KEY_LENGTH = 256;

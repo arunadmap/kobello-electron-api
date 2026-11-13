@@ -4,8 +4,8 @@
 
 import { promises as fs, Stats } from 'fs';
 import path from 'path';
-import { KobelloError } from '@kobello/sdk';
-import type { FileInfo } from '@kobello/sdk/protocol';
+import { KobelloError } from '@kobello-electron/sdk';
+import type { FileInfo } from '@kobello-electron/sdk/protocol';
 import { fail, requireString } from './common';
 
 export interface FileLimits {

@@ -3,7 +3,7 @@
 import { randomUUID } from 'crypto';
 import fs from 'fs';
 import path from 'path';
-import type { InspectResult, Permission } from '@kobello/sdk/protocol';
+import type { InspectResult, Permission } from '@kobello-electron/sdk/protocol';
 import { fail, PERMISSIONS, requireString, writeFileAtomic } from './common';
 import type { Registry, RegistryApp } from './registry';
 

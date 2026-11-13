@@ -1,9 +1,9 @@
 // Runs before Kobello UI and before every Kobello app, and gives the page `window.__kobello`.
-// The @kobello/sdk package wraps it; pages never use it directly.
+// The @kobello-electron/sdk package wraps it; pages never use it directly.
 // It only forwards messages: the main process decides who is calling and what they may do.
 
 import { contextBridge, ipcRenderer, IpcRendererEvent } from 'electron';
-import { PROTOCOL_VERSION } from '@kobello/sdk/protocol';
+import { PROTOCOL_VERSION } from '@kobello-electron/sdk/protocol';
 
 contextBridge.exposeInMainWorld('__kobello', {
   v: PROTOCOL_VERSION,

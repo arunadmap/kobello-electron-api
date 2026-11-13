@@ -2,7 +2,7 @@
 // It's the source of truth for each app's identity, origin and permissions.
 
 import fs from 'fs';
-import type { InstalledApp } from '@kobello/sdk/protocol';
+import type { InstalledApp } from '@kobello-electron/sdk/protocol';
 import { writeFileAtomic } from './common';
 
 export interface RegistryApp extends InstalledApp {

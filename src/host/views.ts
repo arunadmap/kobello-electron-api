@@ -5,7 +5,7 @@
 // in the service worker's way.
 
 import { BrowserWindow, session, WebContentsView } from 'electron';
-import type { Bounds } from '@kobello/sdk/protocol';
+import type { Bounds } from '@kobello-electron/sdk/protocol';
 import { scaleBounds, withTimeout } from './common';
 import type { LinkOpener } from './links';
 import type { RegistryApp } from './registry';

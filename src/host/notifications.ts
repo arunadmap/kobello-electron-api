@@ -2,7 +2,7 @@
 
 import { randomUUID } from 'crypto';
 import { Notification } from 'electron';
-import type { NotificationOptions } from '@kobello/sdk/protocol';
+import type { NotificationOptions } from '@kobello-electron/sdk/protocol';
 import { fail, RateLimiter, requireString } from './common';
 
 const MAX_PER_MINUTE = 10;

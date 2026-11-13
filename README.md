@@ -1,7 +1,7 @@
 # Kobello desktop app
 
 The Electron app that hosts Kobello UI and the Kobello apps you add to it. It answers the
-[`@kobello/sdk`](../kobello-package) calls (storage, files, notifications, links) and keeps each app
+[`@kobello-electron/sdk`](../kobello-package) calls (storage, files, notifications, links) and keeps each app
 cached for offline use. See [docs/KOBELLO_SDK_PLAN.md](docs/KOBELLO_SDK_PLAN.md) for the design.
 
 ## Run it locally
@@ -12,7 +12,7 @@ Kobello UI and the SDK live next to this project:
 Projects/
   kobello-electron-api/   ← this app
   Kobello/                ← Kobello UI
-  kobello-package/        ← @kobello/sdk
+  kobello-package/        ← @kobello-electron/sdk
 ```
 
 1. Start Kobello UI (it serves on http://127.0.0.1:5173):
