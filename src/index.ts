@@ -1,3 +1,4 @@
+import path from 'path';
 import { app, BrowserWindow, Menu, nativeTheme, session, shell } from 'electron';
 import { isExternalLink } from './host/common';
 import { startHost } from './host/router';
@@ -81,6 +82,8 @@ const createWindow = (): void => {
     autoHideMenuBar: true,
     // Kobello UI's desk colour, so the window doesn't flash white before the UI paints.
     backgroundColor: nativeTheme.shouldUseDarkColors ? '#111215' : '#f3f2ee',
+    // The installed app takes its icon from Kobello.exe; running from source, point at the file.
+    icon: app.isPackaged ? undefined : path.join(app.getAppPath(), 'assets', 'icon.ico'),
     webPreferences: {
       preload: MAIN_WINDOW_PRELOAD_WEBPACK_ENTRY,
       contextIsolation: true,

@@ -14,13 +14,20 @@ import { rendererConfig } from './webpack.renderer.config';
 const config: ForgeConfig = {
   packagerConfig: {
     asar: true,
+    // Kobello.exe's icon. The extension is added per platform (.ico on Windows); regenerate with
+    // `node scripts/generate-icon.mjs`. macOS would also need assets/icon.icns.
+    icon: './assets/icon',
   },
   rebuildConfig: {},
   makers: [
-    new MakerSquirrel({}),
+    new MakerSquirrel({
+      setupIcon: './assets/icon.ico',
+      // Shown in Windows' "Installed apps" list, which needs a URL.
+      iconUrl: 'https://raw.githubusercontent.com/arunadmap/kobello-electron-api/main/assets/icon.ico',
+    }),
     new MakerZIP({}, ['darwin']),
-    new MakerRpm({}),
-    new MakerDeb({}),
+    new MakerRpm({ options: { icon: './assets/icon.png' } }),
+    new MakerDeb({ options: { icon: './assets/icon.png' } }),
   ],
   plugins: [
     new AutoUnpackNativesPlugin({}),
