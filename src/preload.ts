@@ -1,8 +1,24 @@
-import { contextBridge, ipcRenderer } from 'electron';
+// Runs before Kobello UI and before every Kobello app, and gives the page `window.__kobello`.
+// The @kobello-electron/sdk package wraps it; pages never use it directly.
+// It only forwards messages: the main process decides who is calling and what they may do.
 
-// See the Electron documentation for details on how to use preload scripts:
-// https://www.electronjs.org/docs/latest/tutorial/process-model#preload-scripts
+import { contextBridge, ipcRenderer, IpcRendererEvent } from 'electron';
+import { PROTOCOL_VERSION } from '@kobello-electron/sdk/protocol';
 
-contextBridge.exposeInMainWorld('api', {
-  getServerAddress: () => ipcRenderer.invoke('get-server-address'),
+contextBridge.exposeInMainWorld('__kobello', {
+  v: PROTOCOL_VERSION,
+
+  /** Calls a host method. Always resolves with { ok, value } or { ok: false, error }. */
+  invoke: (method: string, args?: unknown) => ipcRenderer.invoke('kobello:invoke', { v: PROTOCOL_VERSION, method, args }),
+
+  /** Listens for one host event. Returns a function that stops listening. */
+  on: (event: string, callback: (payload: unknown) => void) => {
+    const listener = (_event: IpcRendererEvent, name: string, payload: unknown) => {
+      if (name === event) callback(payload);
+    };
+    ipcRenderer.on('kobello:event', listener);
+    return () => {
+      ipcRenderer.removeListener('kobello:event', listener);
+    };
+  },
 });
