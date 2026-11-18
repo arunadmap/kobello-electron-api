@@ -30,7 +30,8 @@ const config: ForgeConfig = {
         config: rendererConfig,
         entryPoints: [
           {
-            // The window loads Kobello UI from the web, so this entry only builds the preload script.
+            html: './src/index.html',
+            js: './src/renderer.ts',
             name: 'main_window',
             preload: {
               js: './src/preload.ts',
@@ -49,8 +50,6 @@ const config: ForgeConfig = {
       [FuseV1Options.EnableNodeCliInspectArguments]: false,
       [FuseV1Options.EnableEmbeddedAsarIntegrityValidation]: true,
       [FuseV1Options.OnlyLoadAppFromAsar]: true,
-      // Kobello never loads pages from file://, so that scheme gets no special powers.
-      [FuseV1Options.GrantFileProtocolExtraPrivileges]: false,
     }),
   ],
 };
